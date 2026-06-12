@@ -79,6 +79,9 @@ export function createResourceClient<T extends { id?: string }>(
           (acc, f) => ({ ...acc, [f]: 1 }),
           {} as Record<string, number>
         )
+      } else {
+        // 未指定 fields 时，告诉后端返回所有字段
+        queryObj.projectAll = true
       }
 
       // 分组

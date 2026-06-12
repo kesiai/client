@@ -114,7 +114,7 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
    - 展示方式：<表格/卡片列表/...>
    - 过滤器：<列出过滤字段>
    - 数据字段：<列出展示字段及其含义>
-   - 数据获取方式：<createResourceClient / Model / ViewModel>
+   - 数据获取方式：<createResourceClient / ViewModel>
    - 实时数据（device 表）：<列出需订阅的数据点，用 useTag>
    - 页面间联动：<与其他页面的关联>
 
@@ -172,12 +172,39 @@ npx create-kesi-app my-project --server <服务器地址> --project-id <项目ID
 
 在项目目录中，按以下顺序生成代码：
 
-1. **API 层** — 基于 scan 数据生成 `createHttpClient` + `createResourceClient` 调用（参考 client-api.md）
-2. **数据展示页**（默认）— 使用基础组件 + createResourceClient 展示数据，带过滤器（参考 kesi-ui 决策表）
-3. **仪表盘/首页** — 使用基础组件 + 图表（参考 kesi-ui 的 chart-echarts）
+> **⚠️ 核心规则：表字段 vs 数据点**
+>
+> KESI 设备表有**两种完全不同的数据**，查询方式不同，**绝不能混淆**：
+>
+> | 类型 | 说明 | 查询方式 | 示例 |
+> |------|------|---------|------|
+> | **表字段** | Schema 定义的静态属性 | `createResourceClient.query()` | `name`、`building`、`floor`、`online`、`brand` |
+> | **数据点（tags）** | 设备采集的实时传感器数据 | `useTag` / `queryLatest` / `queryHistory` | `currentTemp`、`power`、`humidity`、`brightness` |
+>
+> **设备传感器数据（温度、功率、湿度、亮度等）绝不能从 `createResourceClient.query()` 获取——这些是数据点，必须使用 `queryLatest`（批量当前值）、`useTag`（实时订阅）或 `core/data/query`（历史趋势）。**
+>
+> 从 scan 数据中识别数据点：每个 device 表的 `tags[]` 数组列出了所有数据点 ID。`api.query()` 只返回 Schema 定义的 `fields[]`，不返回 tags 值。
+
+1. **API 层** — 基于 scan 数据生成三部分 API（参考 client-api.md）：
+   - `createResourceClient` — 表记录 CRUD（`core/t/<tableId>/d`）
+   - `queryLatest` — 批量获取数据点当前值（`POST core/data/latest`）
+   - `queryHistory` — 历史趋势查询（`POST core/data/query`）
+   - 提供 `fetchLatestTags(tableId, records, tagIds)` 通用函数：批量获取数据点并合并到记录对象上
+
+2. **数据展示页**（默认）— 每个页面使用组合数据获取模式：
+   - 先 `createResourceClient.query()` 获取设备列表（表字段：name、building、online…）
+   - 再 `fetchLatestTags(tableId, records, tagIds)` 获取数据点当前值（currentTemp、power…）合并到同一对象
+   - 页面组件直接访问合并后的字段，无需区分来源
+
+3. **仪表盘/首页** — 使用基础组件 + 图表：
+   - 统计卡片：`createResourceClient.count()` 获取数量
+   - 当前值（今日能耗、总功率等）：`fetchLatestTags()` 获取数据点
+   - 趋势图：`queryHistory()` 获取历史数据点
+   - **禁止**从 `api.query()` 结果中读取数据点值
+
 4. **CRUD 管理页**（用户显式指定时）— 使用 ViewModel 视图系统（参考 kesi-ui 的 ViewModel 指南）
 5. **菜单路由** — 根据规划报告配置路由和侧边栏
-6. **实时数据** — 设备表用 useTag/useTableData（参考本文档第三部分订阅模块）
+6. **实时数据订阅**（可选增强）— 用 `useTag`/`useTableData` 替换 `queryLatest` 实现数据点实时刷新
 
 ---
 
@@ -322,29 +349,25 @@ const item = await myApi.get('id') // 单条
 ### 常见场景示例
 
 ```typescript
-// ① 设备表数据查询
+// ① 设备表数据查询（只返回表字段：name, building, online 等）
 const deviceApi = createResourceClient<Device>({
   client: createHttpClient({ resource: 'core/t/hvac_system/d' }),
   resource: 'core/t/hvac_system/d',
 })
 const { items, total } = await deviceApi.query({ limit: 20 }, { status: { $eq: 'online' } })
+// ⚠️ items 中不会有 currentTemp、humidity 等数据点！
 
-// ② 平台资源查询（用户、角色、报警等）
+// ② 批量获取数据点当前值，合并到记录上（推荐模式）
+// fetchLatestTags 内部调用 POST core/data/latest
+const devices = await fetchLatestTags('hvac_system', items, ['currentTemp', 'setTemp', 'humidity'])
+// 现在 devices[0].currentTemp 有值了！
+
+// ③ 平台资源查询（用户、角色、报警等）
 const userApi = createResourceClient<User>({
   client: createHttpClient({ resource: 'core/user' }),
   resource: 'core/user',
 })
 const { items: users } = await userApi.query({ limit: 10 })
-
-// ③ 实时数据点初始化（POST core/data/latest，body 是数组）
-const dataClient = createHttpClient({ resource: 'core/data' })
-await dataClient.request('/latest', {
-  method: 'POST',
-  body: [
-    { tableId: 'hvac_system', id: 'hvac_001', tagId: 'temperature' },
-    { tableId: 'hvac_system', id: 'hvac_001', tagId: 'humidity' },
-  ],
-})
 
 // ④ 历史趋势（POST core/data/query，body 是数组！）
 const queryClient = createHttpClient({ resource: 'core/data/query' })
@@ -357,6 +380,45 @@ await queryClient.request('', {
     where: [`time <= '${new Date().toISOString()}'`],
   }],
 })
+```
+
+### fetchLatestTags 通用函数模板
+
+每个项目都应在 API 层提供此函数，用于批量获取设备数据点并合并到记录：
+
+```typescript
+/**
+ * 批量获取设备数据点最新值，合并到记录对象上
+ * @param tableId 设备表 ID
+ * @param records 设备记录列表（来自 createResourceClient.query）
+ * @param tagIds 需要获取的数据点 ID 列表（来自 scan 数据的 tags[].id）
+ * @returns 合并了数据点的记录列表
+ */
+async function fetchLatestTags<T extends Record<string, any>>(
+  tableId: string,
+  records: T[],
+  tagIds: string[],
+): Promise<T[]> {
+  if (!records.length || !tagIds.length) return records
+  const points = records.flatMap(r => tagIds.map(tagId => ({ tableId, id: r.id, tagId })))
+  try {
+    const dataClient = createHttpClient({ resource: 'core/data' })
+    const res: any = await dataClient.request('/latest', { method: 'POST', body: points })
+    const arr = Array.isArray(res) ? res : (res?.data ?? [])
+    const latestMap: Record<string, any> = {}
+    for (const item of arr) {
+      latestMap[`${item.id || item.tableDataId}::${item.tagId}`] = item.value
+    }
+    return records.map(r => {
+      const merged = { ...r }
+      for (const tagId of tagIds) {
+        const val = latestMap[`${r.id}::${tagId}`]
+        if (val !== undefined) (merged as any)[tagId] = val
+      }
+      return merged
+    })
+  } catch { return records }
+}
 ```
 
 ### 模块索引

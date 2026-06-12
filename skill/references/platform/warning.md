@@ -4,13 +4,19 @@
 
 ## 报警事件（`warning/warning`）
 
-> ⚠️ **报警 API 查询时需要指定返回字段**，否则后端可能不返回字段数据。
+> ⚠️ **报警 API 不支持 `projectAll`**，查询时必须通过 `fields` 参数指定返回字段。`createResourceClient` 会自动将 `fields` 数组转换为 MongoDB 投影格式 `project: { field: 1 }`。
 
 ```typescript
 const client = createHttpClient({ resource: 'warning/warning' })
 const warningApi = createResourceClient<Warning>({
   client,
   resource: 'warning/warning',
+})
+
+// ⚠️ 必须传 fields，不能省略
+const { items } = await warningApi.query({
+  limit: 50,
+  fields: ['id', 'time', 'level', 'status', 'processed', 'desc', 'tableID', 'tableDataID', 'fields', 'handle'],
 })
 ```
 
@@ -19,18 +25,17 @@ const warningApi = createResourceClient<Warning>({
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `id` | string | 报警 ID |
-| `time` | string | 报警时间 |
-| `type` | string | 报警类型 |
+| `time` | string | 报警时间（ISO 8601） |
+| `type` | string[] | 报警规则类型 ID 列表 |
 | `level` | string | 级别：`低`/`中`/`高` |
 | `status` | string | 确认状态：`未确认`/`已确认` |
 | `processed` | string | 处理状态：`未处理`/`已处理` |
 | `handle` | boolean | 需要处理 |
-| `table` | object | 数据表 `{id, name, title}` |
-| `tableData` | object | 设备 `{id, name, uid}` |
-| `tableDataId` | string | 设备编号 |
+| `tableID` | string | ⚠️ 数据表 ID（注意：实际返回 `tableID` 字符串，不是 `table` 对象） |
+| `tableDataID` | string | ⚠️ 设备 ID（注意：实际返回 `tableDataID` 字符串，大写 D，不是 `tableData` 对象） |
 | `desc` | string | 报警描述 |
-| `remark` | string | 报警处理 |
-| `fields` | array | 报警数值 `[{name, value, unit, fixed}]` |
+| `remark` | string | 处理备注 |
+| `fields` | array | 触发报警的点位列表（完整的 tag 定义对象，含 `name`、`value`、`showSetting` 等） |
 | `confirmUser` | object | 确认人 `{id, name}` |
 | `confirmTime` | string | 确认时间 |
 | `handleUser` | object | 处理人 `{id, name}` |

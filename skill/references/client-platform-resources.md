@@ -33,3 +33,5 @@
 2. **系统注入字段**：查询记录时后端自动附加 `id`、`_table`、`_title`、`createTime`、`updateTime`、`creator`、`modifier` 等
 3. **设备表预设字段**：`id`、`name`、`connectTime`、`disable`、`online`、`off`、`warnFlag` 是固定 7 字段
 4. **数据点 vs 字段**：字段是 schema 定义的结构化数据，数据点是设备采集的实时时序数据，查询方式完全不同
+5. **⚠️ 报警事件不支持 projectAll**：`warning/warning` 资源查询时**必须显式传 `fields`**，不能依赖默认的 projectAll。详见 kesi-cli 的 `references/warning.md`
+6. **实现前必须读 references**：创建任何 API 客户端之前，必须先读取对应领域的 references 文档（kesi-cli 的和 kesi-frontend 的），确认资源是否有特殊查询限制
