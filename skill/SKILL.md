@@ -7,87 +7,111 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
 
 接收平台数据，设计前端页面方案，指导 UI 实现。
 
+> 参考文档索引：[references/INDEX.md](references/INDEX.md) — 按需查阅，不要一次性读取所有文件。
+
+---
+
 ## 目录
 
+- [输入验证与交接](#输入验证与交接)
 - [前端规划报告生成](#前端规划报告生成)
-- [第一部分：KESI 项目初始化与安装](#第一部分kesi-项目初始化与安装)
-- [第二部分：KESI 项目结构与开发规范](#第二部分kesi-项目结构与开发规范)
-- [第三部分：KESI 客户端使用指南](#第三部分kesi-客户端使用指南)
+- [项目创建与代码生成](#项目创建与代码生成)
+- [技术栈与开发规范](#技术栈与开发规范)
+- [交接给 kesi-ui](#交接给-kesi-ui)
+
+---
+
+## 输入验证与交接
+
+### 输入来源
+
+从 kesi-cli Phase 3 交接获得 `handoff.json`。
+
+### 验证清单
+
+接收 handoff.json 后，**必须先验证以下各项**：
+
+1. ✅ `handoff.json` 存在且可解析
+2. ✅ `version` 字段为 `"1.0"`
+3. ✅ `tables` 数组非空
+4. ✅ 每个 device 表都有 `tags` 数组
+5. ✅ `server.url` 和 `server.projectId` 非空
+
+如果任何一项失败 → 报告具体缺失项，要求用户回到 kesi-cli 补全。
 
 ---
 
 ## 前端规划报告生成
 
-> 从 kesi-cli 接收 scan 数据后，生成前端规划报告，作为后续组件选型和视觉设计的输入。
+> 从 handoff.json 接收数据后，生成前端规划报告。详细设计方法论参考 → [references/iot-product-design.md](references/iot-product-design.md)
 
-### 输入：scan 数据
+```
+━━━ kesi-frontend Step 1/3 ━━━
+📋 当前任务：分析业务域 + 生成页面设计报告
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
-从 kesi-cli Phase 3 交接获得：
-- `kesi scan --with-sample` 输出（JSON 格式）
-- 包含：表 ID、表标题、tableMajorType（device/normal/dataAuth）、字段列表、设备表数据点（tags）、样本数据
+### 分析维度
 
-### 报告生成规则
-
-**AI 根据扫描数据自动分析推导页面方案，用户只需确认。** 详细设计方法论参考 → [iot-product-design.md](references/iot-product-design.md)
-
-分析维度：
-
-**1. 页面交互模式推导规则：**
+**1. 页面交互模式推导：**
 
 | 数据特征 | AI 推导的交互模式 |
 |----------|-----------------|
 | 设备表（device） | 带过滤的展示：表格 + 在线/报警状态 + 关键数据点 |
-| 配置型数据（楼宇、区域、人员等基础信息） | 带过滤的展示 |
-| 日志/记录型数据（巡更记录、维保记录、操作日志） | 带过滤的展示 |
+| 配置型数据（楼宇、区域、人员等） | 带过滤的展示 |
+| 日志/记录型数据 | 带过滤的展示 |
 | 仪表盘/概览页 | 纯展示：统计卡片 + 趋势图 + 状态概览 |
-| 用户明确要求增删改查的页面 | CRUD 管理 |
+| 用户明确要求增删改查 | CRUD 管理 |
 
-> **默认为展示型页面。** AI 分析数据特征后自动决定，不需要用户逐个指定。如果用户有特殊需求（如某个页面需要 CRUD），在确认报告时提出即可。
+> **默认为展示型页面。** AI 分析数据特征后自动决定。
 
-**2. 数据展示方式推导规则：**
+**2. 数据展示方式推导：**
 
 | 数据特征 | 推荐展示方式 |
 |----------|------------|
 | 设备列表（多行结构化数据） | 表格 |
 | 统计指标（总数、在线率等） | 卡片 + 数字 |
 | 时序数据（温度、电量趋势） | 折线图/柱状图 |
-| 占比分布（设备类型、状态分布） | 饼图/环形图 |
+| 占比分布 | 饼图/环形图 |
 | 地理位置数据 | 地图 |
 | 设备在线/报警状态 | 表格列 + 状态标记 |
 
-**3. 数据获取方式推导规则：**
+**3. 数据获取方式推导：**
 
-| 场景 | 获取方式 |
-|------|---------|
-| 页面级数据查询（列表、统计） | `createResourceClient.query` / `.count` |
-| 实时数据点订阅（设备温度、开关状态等） | `useTag` |
-| 实时字段变化（在线状态、报警标记） | `useTableData` |
-| 历史趋势数据 | `createHttpClient` + `core/data/query` 端点 POST 请求 |
-| CRUD 操作 | `ViewModel`（内部封装 Model） |
+| 场景 | 获取方式 | 详细文档 |
+|------|---------|---------|
+| 页面级数据查询 | `createResourceClient.query` / `.count` | [references/client-api.md](references/client-api.md) |
+| 实时数据点订阅 | `useTag` | [references/client-subscribe.md](references/client-subscribe.md) |
+| 实时字段变化 | `useTableData` | [references/client-subscribe.md](references/client-subscribe.md) |
+| 历史趋势数据 | `createHttpClient` + POST `core/data/query` | [references/platform/device-data.md](references/platform/device-data.md) |
+| CRUD 操作 | `ViewModel` | 交接给 kesi-ui |
 
 **4. 页面生成规则：**
 
 | 表类型 | 自动生成的页面 |
 |--------|--------------|
 | 存在 device 表时 | 自动生成「数据概览」仪表盘（纯展示） |
-| 每个 device 表 | 生成对应的设备列表页（带过滤的展示） |
-| 每个 normal 表 | 生成对应的数据列表页（带过滤的展示） |
+| 每个 device 表 | 对应的设备列表页 |
+| 每个 normal 表 | 对应的数据列表页 |
 | `dataAuth` | 组织管理页（树形结构） |
 
-**5. 页面组织：**
-- 按业务域归类页面（如：概览 / 能源 / 安防 / 楼宇管理）
-- 功能相近的表可合并到同一页面
-- 菜单/导航的展示形式（侧边栏/顶部导航/按钮组等）由视觉设计决定，本报告不限定
+### ⚠️ 核心规则：表字段 vs 数据点
+
+KESI 设备表有**两种完全不同的数据**，绝不能混淆：
+
+| 类型 | 说明 | 查询方式 |
+|------|------|---------|
+| **表字段** | Schema 定义的静态属性 | `createResourceClient.query()` |
+| **数据点（tags）** | 设备采集的实时传感器数据 | `fetchLatestTags` / `useTag` / `core/data/query` |
+
+**设备传感器数据绝不能从 `createResourceClient.query()` 获取。**
 
 ### 输出：页面设计报告格式
-
-设计报告需要明确每个页面的：展示什么数据、用什么方式展示、数据怎么获取、页面间如何联动。
 
 ```
 📋 前端页面设计报告
 
 ━━━ 业务域分析 ━━━
-根据 scan 数据中的表和项目领域，分析业务场景：
 - 项目类型：<智慧楼宇/智慧工厂/...>
 - 核心业务域：<能源/安防/环境/...>
 - 数据特征：<设备表 N 张、普通表 N 张、数据点 M 个>
@@ -96,385 +120,203 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
 1. 数据概览
 2. <页面A>（<数据源>）
 3. <页面B>（<数据源>）
-4. ...
 
 ━━━ 页面设计 ━━━
 1. 数据概览（仪表盘）
    - 交互模式：纯展示
    - 展示内容：
-     ├── 统计卡片：设备总数、在线率、报警数（数据源：各 device 表 count）
-     ├── 趋势图：关键数据点 24h 变化（数据源：createHttpClient POST core/data/query）
-     └── 设备分布：各子系统在线/离线/报警分布（数据源：createResourceClient.query）
-   - 数据获取方式：createResourceClient + createHttpClient
-   - 页面间联动：点击卡片可跳转到对应子系统页面
+     ├── 统计卡片：设备总数、在线率、报警数（数据源：systemVariables）
+     ├── 趋势图：关键数据点 24h 变化（数据源：queryHistory）
+     └── 设备分布：各子系统在线/离线/报警分布
+   - 数据获取：systemVariable + queryLatest + queryHistory
+   - ⚠️ 禁止用逐表 count() 聚合统计卡片
 
 2. <表标题>页（table_id: xxx）
-   - 交互模式：带过滤的展示（默认）/ CRUD（用户指定）
+   - 交互模式：带过滤的展示 / CRUD
    - 表类型：<normal/device>
    - 展示方式：<表格/卡片列表/...>
    - 过滤器：<列出过滤字段>
-   - 数据字段：<列出展示字段及其含义>
-   - 数据获取方式：<createResourceClient / ViewModel>
-   - 实时数据（device 表）：<列出需订阅的数据点，用 useTag>
-   - 页面间联动：<与其他页面的关联>
+   - 数据字段：<列出展示字段>
+   - 实时数据（device 表）：<列出需订阅的数据点>
+   - 页面间联动：<关联页面>
 
 ━━━ 数据获取方案 ━━━
-- API Client：<列出需要手动查询的资源客户端（resource 路径）>
-- useTag/useTableData：<列出需要实时订阅的数据点>
-- ViewModel：<列出使用 ViewModel 的页面及其 tableId>
+- API Client：<资源客户端列表>
+- useTag/useTableData：<实时订阅列表>
 
 ━━━ 页面数量 ━━━
 - 共约 N 个页面
 ```
 
-**重要约束：**
-- 报告由 AI 根据扫描数据自动生成，用户只需确认或调整
-- 本报告是前端架构设计，决定**展示什么、怎么获取、如何联动**
-- 具体用什么 UI 组件实现由 kesi-ui 决定
-- 视觉风格由 ui-ux-pro-max 决定
-- **用户确认报告后**，才能创建项目和生成代码
+**用户确认报告后，才能创建项目和生成代码。**
 
-### 工作流：数据扫描 → 页面设计 → 项目创建 → UI 实现
+---
+
+## 项目创建与代码生成
 
 ```
-kesi-cli                    kesi-frontend                    kesi-ui
-   │                            │                              │
-   ├── scan 数据 ──────────→ 接收                              │
-   │                          │                                │
-   │                    分析业务域                              │
-   │                    设计页面方案                              │
-   │                    （展示内容/数据获取/联动）                  │
-   │                          │                                │
-   │                    用户确认设计报告                           │
-   │                          │                                │
-   │                    创建前端项目                              │
-   │                    生成 API 层                              │
-   │                    生成菜单路由                              │
-   │                          │                                │
-   │                          ├── 设计报告 + 项目 ──────────→  接收
-   │                          │                          选型组件
-   │                          │                          实现页面
-   │                          │                                │
-   │                          ├──→ ui-ux-pro-max（视觉设计）     │
+━━━ kesi-frontend Step 2/3 ━━━
+📋 当前任务：创建项目 + 生成代码
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### 项目创建
-
-确认规划报告后，使用以下命令创建项目：
+### 创建项目
 
 ```bash
 npx create-kesi-app my-project --server <服务器地址> --project-id <项目ID>
 ```
 
-> 服务器地址和项目 ID 从 kesi-cli 的 `kesi config` 获取。
+> 服务器地址和项目 ID 从 `handoff.json` 的 `server` 字段获取。
 
-### 代码生成顺序（规划报告确认后）
+### 创建后验证
 
-在项目目录中，按以下顺序生成代码：
+```bash
+# 检查项目目录
+ls <projectPath>/package.json <projectPath>/vite.config.ts <projectPath>/tsconfig.json
 
-> **⚠️ 核心规则：表字段 vs 数据点**
->
-> KESI 设备表有**两种完全不同的数据**，查询方式不同，**绝不能混淆**：
->
-> | 类型 | 说明 | 查询方式 | 示例 |
-> |------|------|---------|------|
-> | **表字段** | Schema 定义的静态属性 | `createResourceClient.query()` | `name`、`building`、`floor`、`online`、`brand` |
-> | **数据点（tags）** | 设备采集的实时传感器数据 | `useTag` / `queryLatest` / `queryHistory` | `currentTemp`、`power`、`humidity`、`brightness` |
->
-> **设备传感器数据（温度、功率、湿度、亮度等）绝不能从 `createResourceClient.query()` 获取——这些是数据点，必须使用 `queryLatest`（批量当前值）、`useTag`（实时订阅）或 `core/data/query`（历史趋势）。**
->
-> 从 scan 数据中识别数据点：每个 device 表的 `tags[]` 数组列出了所有数据点 ID。`api.query()` 只返回 Schema 定义的 `fields[]`，不返回 tags 值。
+# 检查核心依赖
+cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-dom"'
+```
 
-1. **API 层** — 基于 scan 数据生成三部分 API（参考 client-api.md）：
-   - `createResourceClient` — 表记录 CRUD（`core/t/<tableId>/d`）
-   - `queryLatest` — 批量获取数据点当前值（`POST core/data/latest`）
-   - `queryHistory` — 历史趋势查询（`POST core/data/query`）
-   - 提供 `fetchLatestTags(tableId, records, tagIds)` 通用函数：批量获取数据点并合并到记录对象上
+任何检查失败 → 报告缺失项，不继续生成代码。
 
-2. **数据展示页**（默认）— 每个页面使用组合数据获取模式：
-   - 先 `createResourceClient.query()` 获取设备列表（表字段：name、building、online…）
-   - 再 `fetchLatestTags(tableId, records, tagIds)` 获取数据点当前值（currentTemp、power…）合并到同一对象
-   - 页面组件直接访问合并后的字段，无需区分来源
+### 代码生成顺序
 
-3. **仪表盘/首页** — 使用基础组件 + 图表：
-   - 统计卡片：`createResourceClient.count()` 获取数量
-   - 当前值（今日能耗、总功率等）：`fetchLatestTags()` 获取数据点
-   - 趋势图：`queryHistory()` 获取历史数据点
-   - **禁止**从 `api.query()` 结果中读取数据点值
+> `fetchLatestTags` 通用函数模板：[references/templates/fetch-latest-tags.md](references/templates/fetch-latest-tags.md)
 
-4. **CRUD 管理页**（用户显式指定时）— 使用 ViewModel 视图系统（参考 kesi-ui 的 ViewModel 指南）
-5. **菜单路由** — 根据规划报告配置路由和侧边栏
-6. **实时数据订阅**（可选增强）— 用 `useTag`/`useTableData` 替换 `queryLatest` 实现数据点实时刷新
+1. **API 层** — 生成 `createResourceClient` + `queryLatest` + `queryHistory` + `fetchLatestTags`
+2. **数据展示页** — 组合 `query()` + `fetchLatestTags()` 模式
+3. **仪表盘** — systemVariable 统计卡片 + echarts 趋势图
+4. **CRUD 管理页**（用户指定时）— 使用 ViewModel 系统
+5. **菜单路由** — 根据报告配置路由和侧边栏
+6. **实时订阅**（可选增强）— `useTag` / `useTableData` 替换 `queryLatest`
+
+### 文件操作安全规则
+
+1. **新增文件**：直接 Write
+2. **修改已有文件**：必须使用 Edit（不是 Write），保留未改动部分
+3. **覆盖已有文件**：先 Read 确认内容，告知用户将被覆盖的部分
+
+### 大库策略（scan 数据 > 50KB 时）
+
+- 按业务域分批生成页面
+- 每批 3-5 个页面，生成后验证 TypeScript 编译
+- 先生成骨架（import + 组件结构），再逐个填充逻辑
 
 ---
 
-## 第一部分：KESI 项目初始化与安装
+## 交接给 kesi-ui
 
-### 1.1 技术栈
-
-KESI 前端项目基于 **React 19** + **shadcn/ui (base-nova)** + **Vite 8** + **TypeScript 6** + **Tailwind CSS v4**。
-
-预装核心依赖：`@kesi/client`（平台 SDK）、`@base-ui/react`（UI 原语）、`react-router-dom`（路由）、`jotai`（状态管理）、`lucide-react`（图标）、`sonner`（Toast）。
-
-### 1.2 一键创建项目
-
-> **重要：** `--server` 和 `--project-id` 是必填参数，每次创建项目时必须根据实际环境填写。
-
-```bash
-# 必须指定服务器地址和项目 ID
-npx create-kesi-app my-project --server <KESI 服务器地址> --project-id <项目ID>
-
-# 示例
-npx create-kesi-app my-project --server http://192.168.99.103:3030 --project-id kesi
-
-# 交互模式（按提示逐项输入，推荐）
-npx create-kesi-app
+```
+━━━ kesi-frontend Step 3/3 ━━━
+📋 当前任务：交接设计报告 + 项目给 kesi-ui
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-**CLI 选项：**
+### 交接 Schema（写入 `design-report.json`）
 
-| 选项 | 必填 | 说明 |
-|------|------|------|
-| `--server <url>` | ✅ 是 | KESI 服务器地址（如 `http://192.168.99.103:3030`） |
-| `--project-id <id>` | ✅ 是 | KESI 项目 ID |
-| `--registry <url>` | 否 | kesi-ui 组件库 registry 地址（默认 `http://localhost:3000/r`） |
-| `--skip-install` | 否 | 跳过 npm install（默认 `false`） |
-
-**创建完成后：**
-
-```bash
-cd my-project
-npm run dev
+```json
+{
+  "version": "1.0",
+  "source": "kesi-frontend",
+  "target": "kesi-ui",
+  "projectPath": "<项目路径>",
+  "pages": [
+    {
+      "id": "<pageId>",
+      "title": "<页面标题>",
+      "route": "<路由路径>",
+      "mode": "display|filter-display|crud|gis",
+      "tableId": "<数据表ID>",
+      "displayFields": [
+        { "key": "<fieldKey>", "title": "<标题>", "type": "field|tag" }
+      ],
+      "filterFields": ["<fieldKey>"],
+      "subscription": {
+        "tags": ["<tagId>"],
+        "tableData": false
+      },
+      "layout": "table|cards|chart|map|mixed"
+    }
+  ],
+  "dashboard": {
+    "cards": [],
+    "charts": [],
+    "systemVariables": []
+  }
+}
 ```
 
-### 1.3 生成的项目结构
+### 交接话术
+
+> ✅ 前端项目已创建，代码已生成。请使用 `/kesi-ui` skill，读取 `design-report.json` 实现 UI 组件。
+
+---
+
+## 技术栈与开发规范
+
+### 技术栈
+
+React 19 + shadcn/ui (base-nova) + Vite 8 + TypeScript 6 + Tailwind CSS v4
+
+预装核心依赖：`@kesi/client`、`@base-ui/react`、`react-router-dom`、`jotai`、`lucide-react`、`sonner`
+
+### 项目结构
 
 ```
 my-project/
   .env                        # VITE_KESI_PROJECT_ID
-  .gitignore
   components.json             # shadcn/ui + kesi-ui registry 配置
-  eslint.config.js
-  index.html
-  package.json
-  tsconfig.json / tsconfig.app.json / tsconfig.node.json
   vite.config.ts              # 路径别名 + API 代理
   src/
     main.tsx                  # setConfig + HashRouter + Subscribe
     App.tsx                   # ProtectedRoute + 路由
-    index.css                 # Tailwind v4 主题变量（light/dark）
     lib/
-      utils.ts                # cn() 工具
+      utils.ts                # cn()
       config.ts               # initConfig()
     components/
       layout/AppLayout.tsx    # 侧边栏布局
-      ui/                     # shadcn/ui 基础组件（button, card, badge 等）
+      ui/                     # shadcn/ui 基础组件
     pages/
-      auth/LoginPage.tsx      # 登录页
-      dashboard/DashboardPage.tsx  # 首页
+      auth/LoginPage.tsx
+      dashboard/DashboardPage.tsx
     data/
       menu.ts                 # 菜单配置
 ```
 
-### 1.4 添加 kesi-ui 组件
+### 开发规范
 
-项目已配置 kesi-ui registry，可直接使用 shadcn CLI 添加组件：
+- 页面组件：PascalCase（`UserManagementPage.tsx`）
+- 区块组件：PascalCase（`DataTable.tsx`）
+- UI 组件：kebab-case（`button.tsx`）
+- 所有组件使用 TypeScript 函数组件 + Hooks
 
-```bash
-# 添加表单组件
-npx shadcn@latest add form-input form-select
+### 客户端 API 速查
 
-# 添加图表
-npx shadcn@latest add chart-echarts
-
-# 添加数据视图（CRUD 页面时使用）
-npx shadcn@latest add view-model view-data-table view-filter view-pagination
-```
-
----
-
-## 第二部分：KESI 项目结构与开发规范
-
-### 2.1 源码目录结构
-
-所有源代码位于 **`src`** 目录：
-
-| 目录路径 | 用途 |
-| :--- | :--- |
-| `src/pages/` | 页面级组件和路由文件 |
-| `src/blocks/` | 区块级可复用组件（大型功能模块） |
-| `src/components/` | 业务级通用组件 |
-| `src/components/ui/` | 基础 UI 组件（基于 shadcn/ui） |
-
-### 2.2 开发规范
-
-#### 2.2.1 组件命名规范
-
-- **页面组件**：PascalCase，如 `UserManagementPage.tsx`
-- **区块组件**：PascalCase，如 `DataTable.tsx`
-- **业务组件**：PascalCase，如 `UserCard.tsx`
-- **UI 组件**：kebab-case，如 `button.tsx`、`input.tsx`
-
-#### 2.2.2 代码风格规范
-
-- 所有组件使用 TypeScript
-- 优先使用函数组件和 Hooks
-- Props 定义使用 interface 或 type
-
----
-
-## 第三部分：KESI 客户端使用指南
-
-> **详细文档已拆分到 references/ 目录，按需读取。** 以下为快速索引。
-
-### 快速上手：HTTP 模块
+> 完整文档按需查阅 [references/INDEX.md](references/INDEX.md)
 
 ```typescript
 import { createHttpClient, createResourceClient } from '@kesi/client'
 
-// 1. 创建 HTTP 客户端
-const client = createHttpClient({ resource: 'core/t/<tableId>/d' })
-
-// 2. 创建资源客户端（绑定类型）
-const myApi = createResourceClient<{ id?: string; [key: string]: any }>({
-  client,
+// 创建资源客户端
+const api = createResourceClient<T>({
+  client: createHttpClient({ resource: 'core/t/<tableId>/d' }),
   resource: 'core/t/<tableId>/d',
 })
-
-const { items, total } = await myApi.query({ limit: 100 })
-const count = await myApi.count()  // 计数
-const item = await myApi.get('id') // 单条
-```
-
-### 常见场景示例
-
-```typescript
-// ① 设备表数据查询（只返回表字段：name, building, online 等）
-const deviceApi = createResourceClient<Device>({
-  client: createHttpClient({ resource: 'core/t/hvac_system/d' }),
-  resource: 'core/t/hvac_system/d',
-})
-const { items, total } = await deviceApi.query({ limit: 20 }, { status: { $eq: 'online' } })
-// ⚠️ items 中不会有 currentTemp、humidity 等数据点！
-
-// ② 批量获取数据点当前值，合并到记录上（推荐模式）
-// fetchLatestTags 内部调用 POST core/data/latest
-const devices = await fetchLatestTags('hvac_system', items, ['currentTemp', 'setTemp', 'humidity'])
-// 现在 devices[0].currentTemp 有值了！
-
-// ③ 平台资源查询（用户、角色、报警等）
-const userApi = createResourceClient<User>({
-  client: createHttpClient({ resource: 'core/user' }),
-  resource: 'core/user',
-})
-const { items: users } = await userApi.query({ limit: 10 })
-
-// ④ 历史趋势（POST core/data/query，body 是数组！）
-const queryClient = createHttpClient({ resource: 'core/data/query' })
-await queryClient.request('', {
-  method: 'POST',
-  body: [{
-    tableId: 'energy_meter',
-    tags: [`LAST("power") AS "power"`, 'id'],
-    id: 'meter_001',
-    where: [`time <= '${new Date().toISOString()}'`],
-  }],
-})
-```
-
-### fetchLatestTags 通用函数模板
-
-每个项目都应在 API 层提供此函数，用于批量获取设备数据点并合并到记录：
-
-```typescript
-/**
- * 批量获取设备数据点最新值，合并到记录对象上
- * @param tableId 设备表 ID
- * @param records 设备记录列表（来自 createResourceClient.query）
- * @param tagIds 需要获取的数据点 ID 列表（来自 scan 数据的 tags[].id）
- * @returns 合并了数据点的记录列表
- */
-async function fetchLatestTags<T extends Record<string, any>>(
-  tableId: string,
-  records: T[],
-  tagIds: string[],
-): Promise<T[]> {
-  if (!records.length || !tagIds.length) return records
-  const points = records.flatMap(r => tagIds.map(tagId => ({ tableId, id: r.id, tagId })))
-  try {
-    const dataClient = createHttpClient({ resource: 'core/data' })
-    const res: any = await dataClient.request('/latest', { method: 'POST', body: points })
-    const arr = Array.isArray(res) ? res : (res?.data ?? [])
-    const latestMap: Record<string, any> = {}
-    for (const item of arr) {
-      latestMap[`${item.id || item.tableDataId}::${item.tagId}`] = item.value
-    }
-    return records.map(r => {
-      const merged = { ...r }
-      for (const tagId of tagIds) {
-        const val = latestMap[`${r.id}::${tagId}`]
-        if (val !== undefined) (merged as any)[tagId] = val
-      }
-      return merged
-    })
-  } catch { return records }
-}
+const { items, total } = await api.query({ limit: 100 })
+const count = await api.count()
 ```
 
 ### 模块索引
 
 | 模块 | 关键 API | 详细文档 |
 |------|---------|---------|
-| **HTTP** | `createHttpClient`、`createResourceClient`、`query`、`get`、`save`、`delete`、`count` | [client-api.md](references/client-api.md) |
-| **平台数据查询** | 内置资源字段、数据表类型、设备数据点、报警查询与订阅 | [client-platform-resources.md](references/client-platform-resources.md) |
-| **页面设计** | 业务领域识别、仪表盘设计、展示方式推导、页面联动 | [iot-product-design.md](references/iot-product-design.md) |
-| **认证** | `useLogin`、`useLogout`、`useUser`、`useUserReg` | [client-auth.md](references/client-auth.md) |
-| **表单** | `useForm`、`useFieldArray`、`Controller`、`useFieldUIState` | [client-form.md](references/client-form.md) |
-| **模型** | `Model`、`TableModel`、`useModelList`、`useModelSave` 等 24+ hooks | [client-model.md](references/client-model.md) |
-| **页面 Hooks** | `usePageVar`、`useDatasourceValue`、`useCellDataValue` | [client-page-hooks.md](references/client-page-hooks.md) |
-| **订阅** | `Subscribe`、`useTag`、`useTableData`、`useSubscribeContext` | [client-subscribe.md](references/client-subscribe.md) |
-| **事件** | `useEvents`、`useEvent`、`useEventsWithSpread` | [client-event.md](references/client-event.md) |
-| **配置** | `setConfig`、`getConfig`、`getSettings`、`useMessage` | [client-config.md](references/client-config.md) |
-
-### ViewModel 架构
-
-> ViewModel 是基于 client 层 Model + UI 层字段组件封装的容器组件。
-
-```
-┌─ ViewModel (容器，传入 tableId) ─────────────────┐
-│  内部：TableModel → 自动加载 schema + 数据        │
-│  UI 注册：各种 controlType 的显示组件              │
-│    ├── 表单组件（FormSchemaField）                 │
-│    ├── 过滤组件（FilterSchemaField）               │
-│    └── 列表组件（ListSchemaField）                 │
-│                                                   │
-│  子组件：                                         │
-│  ├── ViewFilter   → 根据 schema 自动渲染过滤器     │
-│  ├── ViewDataTable → 根据 TableColumn 渲染数据表   │
-│  └── ViewPagination → 分页控制                    │
-└───────────────────────────────────────────────────┘
-```
-
-- `ViewModel` 接收 `tableId` 和 `initQuery`，内部通过 `TableModel` 加载表 Schema 并管理数据状态
-- `ViewFilter` 的 `filters` 是 `Array<{ key: string }>`，key 对应 schema 中的字段 key
-- `ViewDataTable` 通过 `TableColumn` 子组件定义列（`name`=字段key, `title`=显示名, `width`, `fixed`）
-- Schema 中定义的 `controlType` 决定了每种字段在表单/过滤器/列表中的渲染组件
-
-### 常用模式 & 最佳实践
-
-完整 CRUD 示例、受保护路由、错误处理、性能优化等 → [client-patterns.md](references/client-patterns.md)
-
-### 依赖版本
-
-```json
-{
-  "@kesi/client": "latest",
-  "react": "^19.0.0",
-  "react-dom": "^19.0.0",
-  "react-router-dom": "^7.12.0",
-  "jotai": "^2.7.0",
-  "react-hook-form": "^7.x"
-}
-```
-**基于源码：** `@kesi/client` 最新源码（`src/` 目录）逐一验证
-**维护团队：** KESI 开发团队
+| HTTP | `createHttpClient`, `createResourceClient` | [references/client-api.md](references/client-api.md) |
+| 平台数据 | 资源字段、数据点、报警 | [references/client-platform-resources.md](references/client-platform-resources.md) |
+| 认证 | `useLogin`, `useUser` | [references/client-auth.md](references/client-auth.md) |
+| 表单 | `useForm`, `useFieldUIState` | [references/client-form.md](references/client-form.md) |
+| Model | `Model`, `TableModel`, 24+ hooks | [references/client-model.md](references/client-model.md) |
+| 订阅 | `Subscribe`, `useTag`, `useTableData` | [references/client-subscribe.md](references/client-subscribe.md) |
+| 事件 | `useEvents`, `useEvent` | [references/client-event.md](references/client-event.md) |
+| 配置 | `setConfig`, `getConfig` | [references/client-config.md](references/client-config.md) |
+| 最佳实践 | Provider 嵌套、CRUD 示例 | [references/client-patterns.md](references/client-patterns.md) |
