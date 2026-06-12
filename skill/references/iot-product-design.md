@@ -38,15 +38,32 @@
 
 ### 核心统计卡片（所有项目通用）
 
-从 device 表的预设字段推导：
+从 `core/systemVariable`（数据字典）读取预计算统计，无需逐表 count 聚合。
+详见 → [platform/system-variable.md](platform/system-variable.md)
 
-| 统计项 | 数据来源 | 计算方式 |
-|--------|---------|---------|
-| 设备总数 | 各 device 表 `api.count()` | 求和 |
-| 在线设备数 | 各 device 表 `api.count({ online: true })` | 求和 |
-| 在线率 | 在线数 / 总数 × 100% | 计算 |
-| 报警设备数 | 各 device 表 `api.count({ warnFlag: true })` | 求和 |
-| 各子系统状态 | 每个 device 表分别统计在线/离线/报警 | 分布 |
+| 统计项 | 数据来源 | 说明 |
+|--------|---------|------|
+| 报警总数 | `dictApi.get('warnCount')` | 全局固定变量，后端实时更新 |
+| 报警设备数 | `dictApi.get('warnDeviceCount')` | 全局固定变量 |
+| 未确认报警数 | `dictApi.get('confirmCount')` | 全局固定变量 |
+| 未处理报警数 | `dictApi.get('processedCount')` | 全局固定变量 |
+| 各子系统在线率 | `dictApi.get('{tableId}')` | 每张设备表自动生成，value 含 count/online/offline/onlineRate |
+| 各子系统报警分布 | `dictApi.get('{tableId}warnstats')` | 每张设备表自动生成，按报警级别统计 |
+
+**代码示例：**
+
+```typescript
+const client = createHttpClient({ resource: 'core/systemVariable' })
+const dictApi = createResourceClient<any>({ client, resource: 'core/systemVariable' })
+
+// 全局报警卡片
+const { value: warnCount } = await dictApi.get('warnCount')
+const { value: warnDeviceCount } = await dictApi.get('warnDeviceCount')
+
+// 各子系统在线率（遍历 scan 数据中的设备表 ID）
+const hvacStats = await dictApi.get('hvac_system')
+// hvacStats.value = { count: 10, online: 8, offline: 2, onlineRate: 80 }
+```
 
 ### 趋势图（根据数据点推导）
 
