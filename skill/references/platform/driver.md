@@ -26,16 +26,19 @@ const driverApi = createResourceClient<Driver>({ client, resource: 'driver/drive
 ## 查询示例
 
 ```typescript
+// 平台资源字段固定，查询时显式指定返回字段
+const DRIVER_FIELDS = ['id', 'name', 'driverType', 'driverVersion', 'state', 'runMode', 'disable', 'ports', 'createTime']
+
 // 列表
-const { items } = await driverApi.query({ limit: 50 })
+const { items } = await driverApi.query({ limit: 50, fields: DRIVER_FIELDS })
 
 // 按类型过滤
-const { items } = await driverApi.query({ limit: 50 }, { driverType: { $eq: 'modbus' } })
+const { items } = await driverApi.query({ limit: 50, fields: DRIVER_FIELDS }, { driverType: { $eq: 'modbus' } })
 
 // 按状态过滤
-const { items } = await driverApi.query({ limit: 50 }, { state: { $eq: 'running' } })
+const { items } = await driverApi.query({ limit: 50, fields: DRIVER_FIELDS }, { state: { $eq: 'running' } })
 
-// 详情
+// 详情（get 不需要 fields）
 const driver = await driverApi.get('driver-001')
 ```
 

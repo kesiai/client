@@ -137,6 +137,20 @@ interface QueryFilter {
 }
 ```
 
+### ⚠️ 字段投影规则（必读）
+
+后端默认只按 `tableSchema` 投影，不加投影参数会导致自定义字段丢失。`createResourceClient` 的行为：
+
+| filter.fields | SDK 自动行为 | 适用场景 |
+|---------------|------------|---------|
+| 传值 `['id','name',...]` | 转 `project: {field:1}`，按指定字段投影 | **平台资源**（user/role/log/driver/catalog 等，字段固定） |
+| 不传 | 自动注入 `projectAll: true`，返回所有字段 | **自定义表** `core/t/{tableId}/d`（字段由 schema 动态定义） |
+
+**生成代码时遵守：**
+- 自定义表查询 **不要传 fields** —— 字段动态无法穷举，依赖默认 projectAll
+- 平台资源查询 **必须传 fields** —— 字段固定，显式列出更安全（字段表见 `references/platform/*.md`）
+- 切勿给自定义表传"不完整"的 fields，会静默丢字段
+
 **过滤操作符：** `$eq`、`$ne`、`$gt`、`$gte`、`$lt`、`$lte`、`$regex`、`$in`、`$nin`、`$and`、`$or`
 
 ---

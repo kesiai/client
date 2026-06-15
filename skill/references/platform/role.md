@@ -25,9 +25,12 @@ const roleApi = createResourceClient<Role>({ client, resource: 'core/role' })
 ## 查询示例
 
 ```typescript
+// 平台资源字段固定，查询时显式指定返回字段
+const ROLE_FIELDS = ['id', 'name', 'description', 'users', 'disabled', 'permission', 'isBlackList', 'createTime']
+
 // 查询所有未禁用角色
-const { items } = await roleApi.query({ limit: 50 }, { disabled: { $ne: true } })
+const { items } = await roleApi.query({ limit: 50, fields: ROLE_FIELDS }, { disabled: { $ne: true } })
 
 // 按名称搜索
-const { items } = await roleApi.query({ limit: 20 }, { name: { $regex: '管理' } })
+const { items } = await roleApi.query({ limit: 20, fields: ROLE_FIELDS }, { name: { $regex: '管理' } })
 ```

@@ -28,19 +28,18 @@ const userApi = createResourceClient<User>({ client, resource: 'core/user' })
 ## 查询示例
 
 ```typescript
+// 平台资源字段固定，查询时显式指定返回字段
+const USER_FIELDS = ['id', 'name', 'email', 'phone', 'status', 'online', 'identity', 'roles', 'remark', 'language', 'createTime']
+
 // 列表查询
-const { items, total } = await userApi.query({ limit: 50, order: { createTime: 'DESC' } })
+const { items, total } = await userApi.query({ limit: 50, order: { createTime: 'DESC' }, fields: USER_FIELDS })
 
 // 按用户名模糊搜索
-const { items } = await userApi.query({ limit: 50 }, { name: { $regex: 'admin' } })
+const { items } = await userApi.query({ limit: 50, fields: USER_FIELDS }, { name: { $regex: 'admin' } })
 
 // 查询在线用户
-const { items } = await userApi.query({ limit: 100 }, { online: { $eq: true } })
+const { items } = await userApi.query({ limit: 100, fields: USER_FIELDS }, { online: { $eq: true } })
 
 // 按状态过滤
-const { items } = await userApi.query({ limit: 50 }, { status: { $eq: 'active' } })
+const { items } = await userApi.query({ limit: 50, fields: USER_FIELDS }, { status: { $eq: 'active' } })
 
-// 获取当前用户（需要特殊端点）
-const client2 = createHttpClient({ resource: 'api/user/me' })
-const { data } = await client2.request('')
-```

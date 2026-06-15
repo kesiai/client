@@ -16,9 +16,7 @@
 | [client-model.md](client-model.md) | Model 模块 | Jotai 状态管理、24+ 数据 hooks | `Model`, `TableModel`, `useModelList`, `useModelSave` |
 | [client-page-hooks.md](client-page-hooks.md) | 页面 Hooks | 页面变量、数据源、工具函数 | `usePageVar`, `useDatasourceValue` |
 | [client-patterns.md](client-patterns.md) | 最佳实践 | Provider 嵌套、CRUD 示例、路由守卫 | 综合示例 |
-| [client-platform-resources.md](client-platform-resources.md) | 平台资源索引 | 资源路径规则、过滤操作符总览 | 索引文件 |
 | [client-subscribe.md](client-subscribe.md) | 订阅模块 | 实时数据点 + 表字段订阅 | `Subscribe`, `useTag`, `useTableData` |
-| [iot-product-design.md](iot-product-design.md) | 页面设计指南 | 从 scan 数据推导 IoT 页面方案 | 设计方法论 |
 
 ## 平台资源 API（references/platform/）
 
@@ -49,14 +47,15 @@
 | 创建 API 层 | client-api.md → platform/table-data.md → templates/fetch-latest-tags.md |
 | 设备数据展示 | client-api.md → platform/device-data.md → client-subscribe.md |
 | CRUD 页面 | client-model.md → client-form.md → client-patterns.md |
-| 仪表盘 | platform/system-variable.md → platform/device-data.md → iot-product-design.md |
+| 仪表盘 | platform/system-variable.md → platform/device-data.md |
 | 实时订阅 | client-subscribe.md → platform/device-data.md |
 | 认证登录 | client-auth.md → client-config.md |
-| 页面设计 | iot-product-design.md → client-patterns.md |
 
 ## 关键约束速记
 
 - **表字段 vs 数据点**：`createResourceClient.query()` 只返回 schema 字段，不返回 tags 值
 - **数据点必须用专用 API**：`fetchLatestTags`（当前值）/ `useTag`（实时订阅）/ `core/data/query`（历史）
 - **报警查询必须传 fields**：不支持 `projectAll`
+- **字段投影规则**：自定义表（`core/t/*/d`）字段动态 → **不传 fields**（SDK 自动 projectAll）；平台资源（user/role/log/driver/catalog 等）字段固定 → **必须传 fields**
+- **系统变量不支持 get(id)**：`core/systemVariable` 取单条必须用 `query` 按 `id`/`uid` 过滤（仪表盘统计卡片常用）
 - **表记录路径带 `/d`**：`core/t/{tableId}/d`，其他平台资源不带

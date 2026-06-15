@@ -32,21 +32,24 @@ const logApi = createResourceClient<Log>({ client, resource: 'core/log' })
 ### 查询示例
 
 ```typescript
+// 平台资源字段固定，查询时显式指定返回字段
+const LOG_FIELDS = ['id', 'time', 'user', 'type', 'level', 'remoteAddr', 'logObj', 'status', 'diff', 'detail', 'message', 'data', 'flow']
+
 // 查询错误日志
 const { items } = await logApi.query(
-  { limit: 50, order: { time: 'DESC' } },
+  { limit: 50, order: { time: 'DESC' }, fields: LOG_FIELDS },
   { level: { $eq: 'ERROR' } }
 )
 
 // 按操作人过滤
 const { items } = await logApi.query(
-  { limit: 50 },
+  { limit: 50, fields: LOG_FIELDS },
   { 'user.name': { $eq: 'admin' } }
 )
 
 // 按操作类型过滤
 const { items } = await logApi.query(
-  { limit: 50 },
+  { limit: 50, fields: LOG_FIELDS },
   { type: { $regex: '登录' } }
 )
 ```
@@ -74,15 +77,18 @@ const sysLogApi = createResourceClient<SysLog>({ client: sysClient, resource: 's
 ### 查询示例
 
 ```typescript
+// 平台资源字段固定，查询时显式指定返回字段
+const SYS_LOG_FIELDS = ['id', 'time', 'level', 'service', 'module', 'msg', 'data', 'detail']
+
 // 查询错误日志
 const { items } = await sysLogApi.query(
-  { limit: 50, order: { time: 'DESC' } },
+  { limit: 50, order: { time: 'DESC' }, fields: SYS_LOG_FIELDS },
   { level: { $eq: 'ERROR' } }
 )
 
 // 按服务名过滤
 const { items } = await sysLogApi.query(
-  { limit: 50 },
+  { limit: 50, fields: SYS_LOG_FIELDS },
   { service: { $eq: 'driver-service' } }
 )
 ```

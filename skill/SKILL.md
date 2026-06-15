@@ -43,7 +43,7 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
 
 ## 前端规划报告生成
 
-> 从 handoff.json 接收数据后，生成前端规划报告。详细设计方法论参考 → [references/iot-product-design.md](references/iot-product-design.md)
+> 从 handoff.json 接收数据后，基于业务域自主分析，按下方分析维度推导页面方案。
 
 ```
 ━━━ kesi-frontend Step 1/3 ━━━
@@ -105,6 +105,17 @@ KESI 设备表有**两种完全不同的数据**，绝不能混淆：
 | **数据点（tags）** | 设备采集的实时传感器数据 | `fetchLatestTags` / `useTag` / `core/data/query` |
 
 **设备传感器数据绝不能从 `createResourceClient.query()` 获取。**
+
+### ⚠️ 核心规则：字段投影（fields vs projectAll）
+
+后端默认只按 `tableSchema` 投影，不加投影参数自定义字段会丢失。SDK 行为：`filter.fields` 为空时自动注入 `projectAll: true`。
+
+| 数据源 | 字段特征 | 生成代码规则 |
+|--------|---------|------------|
+| 自定义表 `core/t/{tableId}/d` | 动态（schema 定义，无法穷举） | **不传 fields**，依赖默认 projectAll 返回全部字段 |
+| 平台资源 `core/user`、`core/role`、`core/log`、`driver/driverInstance` 等 | 固定 | **必须传 fields**，显式列出（字段表见各 `references/platform/*.md`） |
+
+> 详见 [references/client-api.md](references/client-api.md)「字段投影规则」。
 
 ### 输出：页面设计报告格式
 
@@ -312,7 +323,7 @@ const count = await api.count()
 | 模块 | 关键 API | 详细文档 |
 |------|---------|---------|
 | HTTP | `createHttpClient`, `createResourceClient` | [references/client-api.md](references/client-api.md) |
-| 平台数据 | 资源字段、数据点、报警 | [references/client-platform-resources.md](references/client-platform-resources.md) |
+| 平台资源 | 用户/角色/日志/驱动/字典/分组/报表 | [references/INDEX.md](references/INDEX.md) → 「平台资源 API」节 |
 | 认证 | `useLogin`, `useUser` | [references/client-auth.md](references/client-auth.md) |
 | 表单 | `useForm`, `useFieldUIState` | [references/client-form.md](references/client-form.md) |
 | Model | `Model`, `TableModel`, 24+ hooks | [references/client-model.md](references/client-model.md) |

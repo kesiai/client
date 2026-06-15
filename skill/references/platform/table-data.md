@@ -46,10 +46,20 @@ const tableApi = createResourceClient<Record>({ client, resource: 'core/t/hvac_s
 
 设备表还有 `_settings`（设备配置对象）。
 
+## ⚠️ 字段投影规则（重要）
+
+表记录的字段是**动态的**——由该表的 schema（`properties`）定义，不同表字段完全不同，无法预先列举。因此：
+
+- **表记录查询 `不要传 fields`**：依赖 SDK 默认行为自动加 `projectAll: true`，返回所有自定义字段。
+- 后端默认只按 `tableSchema` 投影，若不加 `projectAll`（或显式 `fields`），自定义字段会丢失。
+- `createResourceClient` 在 `filter.fields` 为空时**自动注入** `projectAll: true`（见 SDK 源码 `resource.ts`），所以**保持 filter 不带 fields 即可**，切勿传入不全的字段列表导致静默丢字段。
+
+> 对比：`core/user`、`core/role`、`core/log`、`driver/driverInstance` 等平台资源字段是**固定**的，查询时应**显式传 `fields`**（见各自文档）。
+
 ## CRUD 示例
 
 ```typescript
-// 列表查询（所有 schema 字段都可用于过滤）
+// 列表查询（不传 fields，SDK 自动 projectAll 返回所有自定义字段）
 const { items, total } = await tableApi.query({ limit: 50 })
 
 // 条件过滤

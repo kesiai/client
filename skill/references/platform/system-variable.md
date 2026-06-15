@@ -20,23 +20,52 @@ const dictApi = createResourceClient<SystemVariable>({ client, resource: 'core/s
 | `value` | any | 值（根据 type 不同） |
 | `createTime` | string | 创建时间 |
 
+## ⚠️ 不支持 get(id) 单条查询
+
+`systemVariable` **不支持** `dictApi.get(id)`。取单条必须用 `query` 按 `id`（或 `uid`）过滤：
+
+```typescript
+const VAR_FIELDS = ['id', 'name', 'uid', 'type', 'value', 'createTime']
+```
+
+### 取单条 / 批量（封装辅助函数，全文复用）
+
+> **批量优先：** 仪表盘等场景一次要拿多个统计项，必须用 `getVars` 一次拉回，**禁止循环 `getVar`** 逐个请求（N 个统计项 = N 次 HTTP）。
+
+```typescript
+// 取单条（仅零散取一条时用）
+async function getVar(id: string) {
+  const { items } = await dictApi.query({ limit: 1, fields: VAR_FIELDS }, { id: { $eq: id } })
+  return items[0]
+}
+
+// 批量取多个（一次 query 拉回，转成 Map 方便按 id 取值）
+async function getVars(ids: string[]) {
+  const { items } = await dictApi.query(
+    { limit: ids.length, fields: VAR_FIELDS },
+    { id: { $in: ids } }
+  )
+  return new Map(items.map((v) => [v.id, v]))
+}
+```
+
 ## 查询示例
 
 ```typescript
-// 查询所有
-const { items } = await dictApi.query({ limit: 100 })
+// 列表
+const { items } = await dictApi.query({ limit: 100, fields: VAR_FIELDS })
 
 // 按类型过滤
-const { items } = await dictApi.query({ limit: 100 }, { type: { $eq: 'string' } })
+const { items } = await dictApi.query({ limit: 100, fields: VAR_FIELDS }, { type: { $eq: 'string' } })
 
-// 按编号精确查找
-const { items } = await dictApi.query({ limit: 10 }, { uid: { $eq: 'deviceStatus' } })
+// 按编号(uid)精确查找
+const { items } = await dictApi.query({ limit: 10, fields: VAR_FIELDS }, { uid: { $eq: 'deviceStatus' } })
 
 // 按名称模糊搜索
-const { items } = await dictApi.query({ limit: 50 }, { name: { $regex: '状态' } })
+const { items } = await dictApi.query({ limit: 50, fields: VAR_FIELDS }, { name: { $regex: '状态' } })
 
-// 获取单条
-const item = await dictApi.get('variable-id')
+// 取单条（零散用 getVar；批量用 getVars，不要用 dictApi.get）
+const item = await getVar('variable-id')
 ```
 
 ## 自动生成的统计项
@@ -54,9 +83,9 @@ const item = await dictApi.get('variable-id')
 | `processedCount` | 未处理报警数 | `number` | 尚未处理的报警数 |
 
 ```typescript
-// 获取全局报警统计
-const warnCount = await dictApi.get('warnCount')       // { value: 12, ... }
-const warnDevices = await dictApi.get('warnDeviceCount') // { value: 3, ... }
+// 获取全局报警统计（用 getVar，不要用 dictApi.get）
+const warnCount = await getVar('warnCount')         // { value: 12, ... }
+const warnDevices = await getVar('warnDeviceCount') // { value: 3, ... }
 ```
 
 ### 在线统计（每张设备表自动生成 1 条）
@@ -83,7 +112,7 @@ interface OnlineStats {
 
 ```typescript
 // 获取空调系统在线率
-const stats = await dictApi.get('hvac_system')
+const stats = await getVar('hvac_system')
 // stats.value = { count: 10, online: 8, offline: 2, off: 0, onlineRate: 80 }
 ```
 
@@ -97,7 +126,7 @@ const stats = await dictApi.get('hvac_system')
 
 ```typescript
 // 获取空调系统报警级别分布
-const warnStats = await dictApi.get('hvac_systemwarnstats')
+const warnStats = await getVar('hvac_systemwarnstats')
 ```
 
 ### 总结规则
@@ -114,18 +143,21 @@ const warnStats = await dictApi.get('hvac_systemwarnstats')
 仪表盘页面的统计卡片应优先使用这些预计算数据，而非逐表 count 聚合：
 
 ```typescript
-// ✅ 推荐：直接读取预计算的系统变量
-const client = createHttpClient({ resource: 'core/systemVariable' })
-const dictApi = createResourceClient<any>({ client, resource: 'core/systemVariable' })
+// ✅ 推荐：一次 query 批量拉回所有统计项（getVars 见上方查询示例）
+const stats = await getVars([
+  'warnCount', 'warnDeviceCount', 'confirmCount', 'processedCount',
+  'hvac_system', 'lighting_system',
+])
 
 // 全局报警数
-const { value: warnCount } = await dictApi.get('warnCount')
+const warnCount = stats.get('warnCount')?.value
 
-// 各子系统在线率（遍历所有设备表 ID）
-const hvacStats = await dictApi.get('hvac_system')       // { value: { onlineRate: 80, ... } }
-const lightStats = await dictApi.get('lighting_system')   // { value: { onlineRate: 95, ... } }
+// 各子系统在线率（按设备表 ID 取）
+const hvacOnlineRate = stats.get('hvac_system')?.value?.onlineRate      // 80
+const lightOnlineRate = stats.get('lighting_system')?.value?.onlineRate // 95
 
-// ❌ 不推荐：逐表 count 聚合（冗余查询）
+// ❌ 不推荐：逐条 getVar 或逐表 count 聚合（多次 HTTP 请求）
+// await getVar('warnCount'); await getVar('hvac_system'); ...
 // const total = await deviceApi.count()
 // const online = await deviceApi.count({}, { online: { $eq: true } })
 ```
