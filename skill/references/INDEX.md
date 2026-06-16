@@ -17,6 +17,7 @@
 | [client-page-hooks.md](client-page-hooks.md) | 页面 Hooks | 页面变量、数据源、工具函数 | `usePageVar`, `useDatasourceValue` |
 | [client-patterns.md](client-patterns.md) | 最佳实践 | Provider 嵌套、CRUD 示例、路由守卫 | 综合示例 |
 | [client-subscribe.md](client-subscribe.md) | 订阅模块 | 实时数据点 + 表字段订阅 | `Subscribe`, `useTag`, `useTableData` |
+| [api-validation.md](api-validation.md) | API 校验 | 代码生成后数据请求正确性断言（A–J 硬规则 + 认证 API） | 生成后静态验证用 |
 
 ## 平台资源 API（references/platform/）
 
@@ -50,6 +51,7 @@
 | 仪表盘 | platform/system-variable.md → platform/device-data.md |
 | 实时订阅 | client-subscribe.md → platform/device-data.md |
 | 认证登录 | client-auth.md → client-config.md |
+| 代码校验（生成后） | api-validation.md（数据请求 A–J + 认证 API） |
 
 ## 关键约束速记
 

@@ -95,6 +95,26 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
 | 每个 normal 表 | 对应的数据列表页 |
 | `dataAuth` | 组织管理页（树形结构） |
 
+**5. UI 路由决策推导（决定 UI 实现交给谁）：**
+
+遍历 pages 数组的 `mode` 字段，聚合出两个布尔值：
+
+| 聚合条件 | 布尔值 | 来源 |
+|----------|--------|------|
+| 存在任意 `mode:"crud"` | `hasCrud` | pages 聚合 |
+| 存在任意 `mode:"gis"` | `hasGis` | pages 聚合 |
+
+再结合用户是否指定设计 skill（见下方「用户确认报告」环节的询问），按下表写出 `uiRouting.route`（UI 路由总开关）：
+
+| hasCrud / hasGis | 用户指定设计 skill | uiRouting.route | UI 交给谁 |
+|:---:|:---:|:---:|---|
+| 否 | 否 | `self-loop` | kesi-frontend 自闭环（shadcn + echarts 写完所有页面） |
+| 否 | 是 | `design-skill` | 用户指定的设计 skill |
+| 是 | 否 | `kesi-ui` | kesi-ui（当前默认） |
+| 是 | 是 | `kesi-ui+design-skill` | kesi-ui 做 CRUD/GIS 专用组件 + 设计 skill 做视觉布局 |
+
+> 决策在 Step 1/3 业务域分析完成时算好，写进 `design-report.json` 的 `uiRouting` 字段，下游（kesi-ui / 设计 skill）只读不决策。
+
 ### ⚠️ 核心规则：表字段 vs 数据点
 
 KESI 设备表有**两种完全不同的数据**，绝不能混淆：
@@ -159,7 +179,26 @@ KESI 设备表有**两种完全不同的数据**，绝不能混淆：
 - 共约 N 个页面
 ```
 
-**用户确认报告后，才能创建项目和生成代码。**
+**用户确认报告时，必须顺带确认以下两项：**
+
+1. 页面设计报告内容是否符合预期？
+2. UI 实现是否指定一个设计 skill？（如系统中已有的 `ui-ux-pro-max` 等）
+
+询问话术模板：
+
+> 📋 以上为页面设计报告。请确认：
+> 1. 报告内容是否符合预期？
+> 2. 本项目 UI 实现，你希望指定一个设计 skill 吗？
+>    - **不指定**：我（kesi-frontend）将自动用 shadcn + echarts 完成所有展示型页面 UI；
+>      （如需大屏级视觉质量，建议指定设计 skill）
+>    - **指定**：请给出 skill 名（例：`ui-ux-pro-max`）
+
+根据回答填写 `uiRouting.designSkill`：
+
+- 用户给出 skill 名 → `designSkill: "<skill名>"`
+- 用户不指定 → `designSkill: null`
+
+> skill 名仅作「例」，不硬编码依赖；用户给出的 skill 名原样回填。确认后才能创建项目和生成代码。
 
 ---
 
@@ -195,12 +234,24 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 
 > `fetchLatestTags` 通用函数模板：[references/templates/fetch-latest-tags.md](references/templates/fetch-latest-tags.md)
 
+**通用前置（所有路由象限都做）：**
+
 1. **API 层** — 生成 `createResourceClient` + `queryLatest` + `queryHistory` + `fetchLatestTags`
-2. **数据展示页** — 组合 `query()` + `fetchLatestTags()` 模式
-3. **仪表盘** — systemVariable 统计卡片 + echarts 趋势图
-4. **CRUD 管理页**（用户指定时）— 使用 ViewModel 系统
-5. **菜单路由** — 根据报告配置路由和侧边栏
-6. **实时订阅**（可选增强）— `useTag` / `useTableData` 替换 `queryLatest`
+2. **仪表盘** — systemVariable 统计卡片 + echarts 趋势图
+3. **菜单路由** — 根据报告配置路由和侧边栏
+4. **实时订阅**（可选增强）— `useTag` / `useTableData` 替换 `queryLatest`
+
+**按 `uiRouting.route` 分支的页面 UI 生成：**
+
+- **`self-loop` / `design-skill` 象限**（无 CRUD/GIS）：
+  5. **展示型页面 UI 完整实现** — 用 shadcn Table/Card + 自定义 Filter + echarts，
+     把所有 `uiRouting.selfHandledPages`（mode 为 display/filter-display 的页面）的 UI 写到可运行程度。
+     **不引入任何 kesi-ui 专用组件**（无 ViewModel / GIS 套件）。
+
+- **`kesi-ui` / `kesi-ui+design-skill` 象限**（有 CRUD/GIS）：
+  5. **数据展示页** — 组合 `query()` + `fetchLatestTags()` 模式生成展示型页面；
+     CRUD 管理页（mode=crud）与 GIS 页面（mode=gis）的 UI **留给 kesi-ui**（ViewModel / GIS 套件），
+     本步仅留占位，不实现专用组件。
 
 ### 文件操作安全规则
 
@@ -214,6 +265,62 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 - 每批 3-5 个页面，生成后验证 TypeScript 编译
 - 先生成骨架（import + 组件结构），再逐个填充逻辑
 
+### 生成后静态验证（自检 gate，交接前必须执行）
+
+> 所有页面代码生成完成后、交接给 UI 实现 skill 之前，必须通过以下静态验证。这是保证「**有登录页**」+「**数据请求正确**」的代码层质量门，不依赖网络、不需启动项目。
+
+**① TypeScript 编译**
+
+```bash
+cd <projectPath> && npx tsc -b
+```
+
+- 零错误通过 → ✅（模板无独立 typecheck script，用 `tsc -b`）
+- 有错误 → 🔴 必须修复后才能交接
+
+**② 项目结构断言（登录页链路）**
+
+检查以下文件存在且内容符合约定：
+
+- `src/pages/auth/LoginPage.tsx` 存在，且使用 `useLogin().onLogin`（不是手写 fetch 到 `core/auth/login`）
+- `src/App.tsx` 含 `ProtectedRoute` 守卫：`useUser().user == null` → `Navigate to="/login"`
+- `src/main.tsx` 调用了 `loadUser()`（刷新恢复会话）且根有 `<Subscribe>` 包裹
+- `.env` 含 `VITE_PROJECT_ID`
+
+**③ 登录链路 checklist**
+
+1. LoginPage 组件存在且挂 `/login` 路由
+2. 用 `useLogin().onLogin` 发起登录
+3. ProtectedRoute 守卫存在（未登录跳 `/login`）
+4. main.tsx 调用 `loadUser()`
+5. `<Subscribe>` 在根
+6. （建议项）是否处理 `showCode` 验证码 / `needChangePwd` 分支
+
+> 认证 API 细节（`core/auth/login` 端点、SHA1 密码、token 持久化）见 [references/api-validation.md](references/api-validation.md)「认证 API」。
+
+**④ 数据请求正确性 — 硬规则扫描**
+
+> 完整断言清单（A–J 十条硬规则 + 认证 API 要点 + 扫描方法 + 报告格式）见 **[references/api-validation.md](references/api-validation.md)**。本文件不内联，避免与 references 重复维护。
+
+对照 `design-report.json` 的 pages 与 handoff.json 的 scan 数据，扫描生成的源码。十条硬规则覆盖：
+
+- **A** 字段投影（自定义表不传 fields / 平台资源必传）
+- **B** 数据点来源（tag 不能从 query 取）
+- **C** `core/data/query` body 必须数组
+- **D** `core/data/latest` 点结构 `{tableId,id,tagId}`
+- **E** 带 group 必须聚合函数
+- **F** resource 与 client.resource 一致
+- **G** 仪表盘禁逐表 count()
+- **H** 订阅需 `<Subscribe>` 包根
+- **I** 接口文档对照（每个请求回查 platform 文档验证路径/方法/必传项）
+- **J** 轮询 vs 订阅（轮询请求评估能否改 ws 订阅、是否值得）
+
+**验证报告输出**：列出每项 ✅/⚠️/🔴，附问题 `文件:行号`。
+
+- ① 编译 🔴 → 必须修复后才能交接
+- 其余 ⚠️ → 记录并告知用户，不阻塞交接
+- `self-loop` 路由下（UI 由 kesi-frontend 自闭环）尤须保证展示页无 A/B 规则违反
+
 ---
 
 ## 交接给 kesi-ui
@@ -226,12 +333,24 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 
 ### 交接 Schema（写入 `design-report.json`）
 
+> **路由字段 `uiRouting`**：kesi-frontend 算好后写入，下游 kesi-ui / 设计 skill 只读不决策。其中 `route` 是 UI 路由总开关。
+> 注意：顶层历史字段 `target`（产出物目标）保持不变，**真正的 UI 路由信号是 `uiRouting.route`**，二者不要混淆。
+
 ```json
 {
   "version": "1.0",
   "source": "kesi-frontend",
   "target": "kesi-ui",
   "projectPath": "<项目路径>",
+  "uiRouting": {
+    "hasCrud": false,
+    "hasGis": false,
+    "designSkill": null,
+    "route": "self-loop|kesi-ui|design-skill|kesi-ui+design-skill",
+    "crudPages": ["<需 kesi-ui ViewModel 套件的 pageId>"],
+    "gisPages": ["<需 kesi-ui GIS 套件的 pageId>"],
+    "selfHandledPages": ["<display/filter-display 页面 pageId，自闭环时由 kesi-frontend 写完>"]
+  },
   "pages": [
     {
       "id": "<pageId>",
@@ -258,9 +377,27 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 }
 ```
 
-### 交接话术
+### 交接话术（按 `uiRouting.route` 选择）
 
+> 决策结果 `uiRouting.route = <值>`，对应话术如下：
+
+**① `self-loop`（kesi-frontend 自闭环，不交接）：**
+> ✅ 前端项目已创建，所有展示型页面 UI 已由 kesi-frontend 用 shadcn + echarts 完整实现。
+> 本项目无 CRUD/GIS 需求，无需调用 kesi-ui。
+> （如后续需要大屏级视觉增强，可指定设计 skill 重新实现。）
+
+**② `design-skill`（交给用户指定的设计 skill）：**
+> ✅ 前端项目已创建，数据接入代码已生成。
+> UI 视觉实现交给设计 skill `/<designSkill>`，请读取 `design-report.json` 完成页面 UI。
+> （本项目无 CRUD/GIS，kesi-ui 不参与。）
+
+**③ `kesi-ui`（当前默认，有 CRUD/GIS 未指定设计 skill）：**
 > ✅ 前端项目已创建，代码已生成。请使用 `/kesi-ui` skill，读取 `design-report.json` 实现 UI 组件。
+
+**④ `kesi-ui+design-skill`（组合，有 CRUD/GIS 且指定了设计 skill）：**
+> ✅ 前端项目已创建，代码已生成。UI 实现分两步：
+> 1. `/kesi-ui`：实现 CRUD/GIS 专用组件（见 `uiRouting.crudPages` / `gisPages`）
+> 2. `/<designSkill>`：负责整体视觉与布局风格
 
 ---
 
@@ -276,7 +413,7 @@ React 19 + shadcn/ui (base-nova) + Vite 8 + TypeScript 6 + Tailwind CSS v4
 
 ```
 my-project/
-  .env                        # VITE_KESI_PROJECT_ID
+  .env                        # VITE_PROJECT_ID
   components.json             # shadcn/ui + kesi-ui registry 配置
   vite.config.ts              # 路径别名 + API 代理
   src/
