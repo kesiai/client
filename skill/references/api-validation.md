@@ -188,10 +188,12 @@ const { value } = useTag({ tableId, id, tagId: 'temperature' })
 | 登录端点 | 固定 `core/auth/login`，登出 `core/auth/logout` | client-auth.md |
 | 密码传输 | 前端 `sha1(password)`，非明文 | client-auth.md |
 | 发起方式 | 用 `useLogin().onLogin`，**不要**手写 fetch 到 `core/auth/login` | client-auth.md |
+| 登出发起方式 | 用 `useLogout().onLogout`，**不要**手写 fetch 到 `core/auth/logout` | client-auth.md |
+| 登出副作用 | `onLogout` 已清 `user` key（localStorage+sessionStorage）并 `navigate('/logout')`；**`/logout` 路由必须注册**，否则登出后 404 | client-auth.md |
 | token 持久化 | `onLogin` 已处理；remember=true→localStorage，否则 sessionStorage；key 固定 `'user'`，7 天有效 | client-auth.md |
 | 会话恢复 | `main.tsx` 必须调 `loadUser()`（否则刷新即登出） | client-auth.md |
 
-> 登录页的**组件结构**检查（ProtectedRoute 守卫、路由挂载、Subscribe 包裹）见 SKILL.md「生成后静态验证」②③。
+> 登录/登出的**组件结构**检查（ProtectedRoute 守卫、路由挂载、Subscribe 包裹、登出入口与 `/logout` 落地）见 SKILL.md「生成后静态验证」②③③′。
 
 ---
 

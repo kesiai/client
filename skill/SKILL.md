@@ -267,7 +267,7 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 
 ### 生成后静态验证（自检 gate，交接前必须执行）
 
-> 所有页面代码生成完成后、交接给 UI 实现 skill 之前，必须通过以下静态验证。这是保证「**有登录页**」+「**数据请求正确**」的代码层质量门，不依赖网络、不需启动项目。
+> 所有页面代码生成完成后、交接给 UI 实现 skill 之前，必须通过以下静态验证。这是保证「**有登录页**」+「**可登出**」+「**数据请求正确**」的代码层质量门，不依赖网络、不需启动项目。
 
 **① TypeScript 编译**
 
@@ -297,6 +297,16 @@ cd <projectPath> && npx tsc -b
 6. （建议项）是否处理 `showCode` 验证码 / `needChangePwd` 分支
 
 > 认证 API 细节（`core/auth/login` 端点、SHA1 密码、token 持久化）见 [references/api-validation.md](references/api-validation.md)「认证 API」。
+
+**③′ 登出链路 checklist**
+
+> `useLogout().onLogout` 固定调用 `core/auth/logout`，清空 user 并 `navigate('/logout')`。因此「可登出」= 存在登出入口 **且** `/logout` 路由可达（否则点击登出后白屏 404）。
+
+1. 登出入口存在 — 受保护布局（`AppLayout` / 顶部栏 / 用户菜单）中有「退出」按钮，绑定 `useLogout().onLogout`（不是手写 fetch 到 `core/auth/logout`）
+2. `useLogout` 来源正确 — 从 `@kesi/client` 导入，而非自造登出函数
+3. `/logout` 路由可达 — `App.tsx` 注册了 `/logout`（落地页：重定向回 `/login` 或渲染「已退出」提示页）。**注意 `onLogout` 内部硬编码 `navigate('/logout')`，漏配此路由 = 登出后 404**
+4. 守卫闭环 — 登出后 `user` 置 `null`，ProtectedRoute 应把用户挡回 `/login`（与登录链路 ③-3 同一套守卫，无需重复实现）
+5. 残留 token 清理 — 验证 `onLogout` 已清理 `localStorage`/`sessionStorage` 中的 `user` key（SDK 已内置，自造函数常漏）
 
 **④ 数据请求正确性 — 硬规则扫描**
 
