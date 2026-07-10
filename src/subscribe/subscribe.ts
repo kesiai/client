@@ -150,10 +150,10 @@ export const useTableDataSubscribe = () => {
 
   // Handle incoming data
   onDataNode((data: any) => {
-    if (performance) {
+    if (performance && data?.tableDataId) {
       warehouseNode.current = {
         ...warehouseNode.current,
-        [data.tableDataId]: { ...(warehouseNode.current[data.tableDataId] || {}), ...data }
+        [data?.tableDataId]: { ...(warehouseNode.current[data?.tableDataId] || {}), ...data }
       }
       updateNode(warehouseNode.current)
     } else {

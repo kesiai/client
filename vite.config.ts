@@ -38,13 +38,17 @@ export default defineConfig({
           'react': 'React',
           'react-dom': 'ReactDOM',
           'react-router': 'ReactRouter',
-          'react-router-dom': 'ReactRouterDOM'
+          'react-router-dom': 'ReactRouterDOM',
+          'axios': 'axios'
         }
       },
       external: [
         // 在这里添加不希望打包进库的依赖
         // 例如: 'react', 'react-dom'
-        'react', 'react-dom', 'react-router', 'react-router-dom'
+        'react', 'react-dom', 'react-router', 'react-router-dom',
+        // axios 外置：让消费方与应用共享同一 axios 实例，
+        // 以便应用层装配全局响应拦截器（如 401 登录态失效处理）
+        'axios'
       ]
     },
     sourcemap: true,
