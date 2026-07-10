@@ -275,16 +275,18 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
     convert_format(v: any, schema: SchemaProperty): any {
       const value = clone(v)
       if (value) {
-        if (schema.format === 'datetime') {
+        if (schema?.format === 'datetime') {
           return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
-        } else if (schema.format === 'date') {
+        } else if (schema?.format === 'date') {
           return dayjs(value).format('YYYY-MM-DD')
-        } else if (schema.type === 'array' && isArray(value)) {
-          return value.map((i: any) => this.convert_format(i, schema.items!))
-        } else if (schema.type === 'object' && isPlainObject(value)) {
+        } else if (schema?.type === 'array' && isArray(value)) {
+          // 附件组(upload-group)等 array 字段没有 items 子项定义；缺失时不递归，
+          // 避免 schema.items 为 undefined 时传入下一层、在访问 .format 时崩溃
+          return schema.items ? value.map((i: any) => this.convert_format(i, schema.items!)) : value
+        } else if (schema?.type === 'object' && isPlainObject(value)) {
           schema?.properties && Object.keys(schema.properties).forEach(k => {
             const p = schema.properties![k]
-            value[k] = this.convert_format(value[k], p)
+            if (p) value[k] = this.convert_format(value[k], p)
           })
         }
       }
