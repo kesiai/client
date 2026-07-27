@@ -18,6 +18,7 @@
 | [client-patterns.md](client-patterns.md) | 最佳实践 | Provider 嵌套、CRUD 示例、路由守卫 | 综合示例 |
 | [client-subscribe.md](client-subscribe.md) | 订阅模块 | 实时数据点 + 表字段订阅 | `Subscribe`, `useTag`, `useTableData` |
 | [api-validation.md](api-validation.md) | API 校验 | 代码生成后数据请求正确性断言（A–J 硬规则 + 认证 API） | 生成后静态验证用 |
+| [theme-guide.md](theme-guide.md) | **主题化规范** | **shadcn 样式约束：禁止硬编码颜色、圆角等** | **UI 实现前必读** |
 
 ## 平台资源 API（references/platform/）
 

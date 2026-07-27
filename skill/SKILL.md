@@ -447,6 +447,7 @@ my-project/
 - 页面组件：PascalCase（`UserManagementPage.tsx`）
 - 区块组件：PascalCase（`DataTable.tsx`）
 - UI 组件：kebab-case（`button.tsx`）
+- 组件样式：Tailwind CSS + shadcn/ui，严格遵守 [theme-guide.md](references/theme-guide.md)，禁止硬编码颜色、圆角等样式
 - 所有组件使用 TypeScript 函数组件 + Hooks
 
 ### 客户端 API 速查
