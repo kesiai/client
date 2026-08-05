@@ -262,6 +262,7 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
 
       return axios(axiosConfig).then((response: AxiosResponse) => ({
         json: response.data,
+        status: response.status,
         headers: response.headers as any
       })).catch((error: any) => {
         const err: any = {
