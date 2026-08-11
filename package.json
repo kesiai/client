@@ -1,6 +1,6 @@
 {
   "name": "@kesi/client",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "kesi client lib",
   "type": "module",
   "main": "./dist/kesi-client.umd.js",
