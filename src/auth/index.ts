@@ -76,17 +76,16 @@ export const useLogin = () => {
 
     return new Promise((resolve, reject) => {
       let url = 'core/auth/login'
-      let where = { method: 'POST', body: JSON.stringify(data) }
 
-      api({ name: url })
-        .fetch('', { ...where })
-        .then(({ json, headers }) => {
+      api({ name: url, ignoreAuthorization: true })
+        .post('', data)
+        .then(({ data, headers }) => {
 
           const redirect = headers['x-oauth-redirect']
           storage.removeItem(storageKey)
 
-          // getTokenSettings(json)
-          uploadUser(storage, json, storageKey, setUser)
+          // getTokenSettings(data)
+          uploadUser(storage, data, storageKey, setUser)
 
           //处理黑名单角色权限
           // if (!json?.isAdmin && json?.blackPermissions?.length) {
@@ -115,7 +114,7 @@ export const useLogin = () => {
           // }
           // unuse无权限模块
 
-          const needChangePwd = settings?.userExpand?.needChangePwd && json.isFirstLogin
+          const needChangePwd = settings?.userExpand?.needChangePwd && data.isFirstLogin
 
           if (!needChangePwd) {
             if (redirect && redirect == '#/oAuth') {
@@ -126,13 +125,15 @@ export const useLogin = () => {
               navigate(redirect, { replace: true })
             }
           }
-          resolve({ needChangePwd, password, id: json.id, username })
+          resolve({ needChangePwd, password, id: data.id, username })
         })
         .catch((err: any) => {
           setResetVerifyCode(new Date().toString())
-          if (err.status !== 451) setShowCode(true)
-          if (err.status == 400 || err.status == 451) {
-            reject({ ...err.json, username: err?.json?.user, 'FORM_ERROR': err?.json?.user })
+          const status = err?.response?.status
+          const json = err?.response?.data
+          if (status !== 451) setShowCode(true)
+          if (status == 400 || status == 451) {
+            reject({ ...json, username: json?.user, 'FORM_ERROR': json?.user })
           } else {
             reject(err)
           }
@@ -149,16 +150,13 @@ export const useUserReg = () => {
 
   const onSubmit = (value: any) => {
     return new Promise((resolve, reject) => {
-      api({ name: 'core/register/normal' })
-        .fetch('', {
-          method: 'POST',
-          body: JSON.stringify({
-            ...value,
-            password: sha1(value.password).toString()
-          }),
+      api({ name: 'core/register/normal', ignoreAuthorization: true }).post
+        ('', {
+          ...value,
+          password: sha1(value.password).toString()
         })
-        .then(({ json }) => {
-          message.success(json?.Message || ('注册成功'))
+        .then(({ data }) => {
+          message.success(data?.Message || ('注册成功'))
           resolve(true)
           navigate('/login')
         })
@@ -177,7 +175,7 @@ export const useLogout = () => {
   const { setUser,storageKey } = useUser()
 
   const onLogout = () => {
-    api({ name: 'core/auth/logout' }).fetch('')
+    api({ name: 'core/auth/logout' }).get('')
       .then(() => {
         localStorage.removeItem(storageKey)
         sessionStorage.removeItem(storageKey)

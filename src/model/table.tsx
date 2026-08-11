@@ -17,10 +17,10 @@ const TableModel = ({ tableId, loadingComponent, schemaTransform, initQuery, ini
     setState({ schema: undefined, tags: [], loading: true })
     try {
       const [table, tagResponse] = await Promise.all([
-        api({ name: 'core/t/schema' }).get(tableId).then((payload: any) => payload),
-        api({ name: `/core/t/schema/tag/${tableId}` }).fetch('')
+        api({ name: 'core/t/schema' }).get(tableId).then((payload: any) => payload.data),
+        api({ name: `/core/t/schema/tag/${tableId}` }).get('')
       ])
-      const { json } = tagResponse
+      const { data } = tagResponse
 
       if (table == null || table.schema == null) {
         throw new Error('Table schema not found')
@@ -104,7 +104,7 @@ const TableModel = ({ tableId, loadingComponent, schemaTransform, initQuery, ini
         },
       }
 
-      setState({ schema, tags: json?.tags || [], loading: false })
+      setState({ schema, tags: data?.tags || [], loading: false })
     } catch (error) {
       console.error('Failed to fetch table schema:', error)
       setState({ schema: undefined, tags: [], loading: false })

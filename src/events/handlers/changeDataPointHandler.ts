@@ -65,7 +65,7 @@ async function updateRecordDataPoint(
   await recordApi.fetch(`/record`, {
     method: 'POST',
     noMessage: true,
-    body: JSON.stringify(oldData),
+    data: oldData,
   })
 }
 
@@ -114,7 +114,7 @@ async function updateTableDataPoint(
   await updateApi.fetch(`/schema/${tableId}`, {
     method: 'PATCH',
     noMessage: true,
-    body: JSON.stringify(oldData),
+    data: oldData,
   })
 }
 

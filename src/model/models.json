@@ -239,6 +239,7 @@
     "systemvariable": {
         "name": "systemvariable",
         "resource": "core/systemVariable",
+        "ignoreAuthorization": true,
         "type": "object",
         "icon": {
             "key": null,
@@ -2362,6 +2363,7 @@
     "Theme": {
         "name": "theme",
         "resource": "core/theme",
+        "ignoreAuthorization": true,
         "type": "object",
         "icon": "user",
         "title": "系统主题",
@@ -3098,6 +3100,7 @@
     "Site": {
         "name": "site",
         "resource": "core/site",
+        "ignoreAuthorization": true,
         "title": "前台",
         "type": "object",
         "icon": "site",
@@ -7356,6 +7359,7 @@
     "Message": {
         "name": "auth_message",
         "resource": "core/message",
+        "ignoreAuthorization": true,
         "noAuth": true,
         "type": "object",
         "icon": "message",

@@ -10,8 +10,7 @@ import isString from 'lodash/isString'
 import omit from 'lodash/omit'
 import values from 'lodash/values'
 import dayjs from 'dayjs'
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
-import { noToken, noGetToken } from './noToken'
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { getConfig } from '../config'
 
 // 类型定义
@@ -46,6 +45,8 @@ export interface APIOptions {
   resource?: string
   proxyKey?: string
   headers?: Record<string, string>
+  // 置为 true 时该接口不携带 Authorization header（如登录、注册、公开接口）
+  ignoreAuthorization?: boolean
   idProp?: string | string[]
   convertItem?: (item: any) => any
   queryParams?: Record<string, any>
@@ -66,44 +67,37 @@ export interface QueryOptions {
   [key: string]: any
 }
 
-export interface FetchOptions {
-  method?: string
-  headers?: Record<string, string>
+export interface FetchOptions extends AxiosRequestConfig {
+  ignoreAuthorization?: boolean
   body?: string
   noMessage?: boolean
   apiMessage?: boolean
   [key: string]: any
 }
 
-export interface APIResponse {
+export interface FetchResponse extends AxiosResponse {
   json: any
-  status?: number
-  headers: Record<string, string>
 }
 
-export interface API {
+
+// Model API 实例：包含 API 的全部成员以及模型专用的转换/查询方法
+export interface ModelAPIInstance {
   model: APIOptions
   host: string
   resource: string
-  headers: Record<string, string>
 
   // 方法
-  fetch: (uri: string, options?: FetchOptions) => Promise<APIResponse>
+  fetch: (uri: string, options?: FetchOptions) => Promise<FetchResponse>
   query: (filter?: any, wheres?: any, withCount?: boolean, ...params: any[]) => Promise<{ items: any[]; total: number }>
   get: (id?: string, option?: FetchOptions) => Promise<any>
-  getOrigin: (id?: string) => Promise<APIResponse>
+  getOrigin: (id?: string) => Promise<FetchResponse>
   delete: (id?: string) => Promise<any>
   save: (data?: any, partial?: boolean) => Promise<any>
-}
-
-interface APIInstance extends API {
-  noToken: string[]
-  noGetToken: string[]
+  count: (filter?: any) => Promise<number>
 
   // 方法
   convert_format: (v: any, schema: SchemaProperty) => any
   convert_item: (item: any) => any
-  count: (filter?: any) => Promise<number>
   convert: (f: QueryOptions) => any
   convert_value: (value: any, keys: string[]) => any
   convert_where_value: (w: any) => any
@@ -162,57 +156,7 @@ function getHost(options: APIOptions): string {
   return getConfig().rest || '/rest/'
 }
 
-function getHeaders(options: FetchOptions, context: AppContext, resource: string, noTokenList: string[], noGetTokenList: string[]): Record<string, string> {
-  const user = context.user
-  const lang = context.language
-  const settings = context.settings
-  const methods = ['DELETE', 'PATCH', 'PUT']
-
-  const hs: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Request-TimeZone': getTimezoneOffset()
-  }
-
-  if (user && user.token) {
-    let filterToken: string[] = []
-    filterToken = noTokenList?.length ? noTokenList.filter(val => val === resource) : []
-    filterToken = noGetTokenList?.length ? noGetTokenList.filter(val => {
-      if (val === resource && options?.method === 'GET') return val
-      return undefined
-    }) : []
-    if (filterToken?.length === 0) hs['Authorization'] = user.token
-  }
-
-  // 手动传了token
-  if (options?.headers?.['Authorization']) {
-    hs['Authorization'] = options?.headers?.['Authorization']
-  }
-
-  const projectId = typeof location !== 'undefined' ? location.pathname.split('/').find(p => p.startsWith('_p_')) : null
-  if (projectId) {
-    hs['x-request-project'] = projectId.substring(3)
-  } else {
-    if(getConfig().projectId){
-      hs['x-request-project'] = getConfig().projectId as string
-    }
-  }
-
-  if (lang) {
-    hs['Accept-Language'] = lang
-  }
-
-  if (settings?.safeRequest && options?.method && methods.includes(options?.method)) {
-    hs['x-request-http-method'] = options?.method
-  }
-
-  return hs
-}
-
-// 工厂函数创建 API 实例
-export function createAPI(options: APIOptions, context?: AppContext): APIInstance {
-  const ctx = context || getConfig()
-  const model = options
-  const host = getHost(options)
+function resolveResource(options: APIOptions): string {
   let resource = options.resource || options.name
 
   if (resource === undefined) {
@@ -223,19 +167,93 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
     resource = 'core/' + resource
   }
 
-  const noTokenList = noToken()
-  const noGetTokenList = noGetToken()
+  return resource
+}
+
+export function getHeaders(options?: FetchOptions, context?: AppContext): Record<string, string> {
+  const ctx = context || getConfig()
+  const user = ctx.user
+  const lang = ctx.language
+  const settings = ctx.settings
+  const methods = ['DELETE', 'PATCH', 'PUT']
+
+  const hs: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Request-TimeZone': getTimezoneOffset()
+  }
+
+  // 需要忽略 Authorization 的接口（如登录、注册、公开配置），直接不携带 token
+  if (!options?.ignoreAuthorization) {
+    if (user && user.token) {
+      hs['Authorization'] = user.token
+    }
+    // 手动传了token
+    if (options?.headers?.['Authorization']) {
+      hs['Authorization'] = options?.headers?.['Authorization']
+    }
+  }
+
+  const projectId = typeof location !== 'undefined' ? location.pathname.split('/').find(p => p.startsWith('_p_')) : null
+  if (projectId) {
+    hs['x-request-project'] = projectId.substring(3)
+  } else {
+    if (ctx.projectId) {
+      hs['x-request-project'] = ctx.projectId as string
+    }
+  }
+  if (lang) {
+    hs['Accept-Language'] = lang
+  }
+  if (settings?.safeRequest && options?.method && methods.includes(options?.method)) {
+    hs['x-request-http-method'] = options?.method
+  }
+  return hs
+}
+
+// 工厂函数：直接返回一个配置好 baseURL 的 axios 实例，默认 headers 通过请求拦截器添加
+export function createHttp(options: APIOptions, context?: AppContext): AxiosInstance {
+  const ctx = context || getConfig()
+  const resource = resolveResource(options)
+
+  const instance = axios.create({
+    baseURL: getHost(options),
+    ...ctx.axiosConfig
+  })
+
+  instance.interceptors.request.use((config) => {
+    const headers = getHeaders(options as FetchOptions, ctx)
+    const cfgHeaders = config.headers as Record<string, any>
+    Object.keys(headers).forEach((key) => {
+      if (cfgHeaders[key] === undefined) {
+        cfgHeaders[key] = headers[key]
+      }
+    })
+    if(resource) {
+      config.url = `${resource}${config.url}`
+    }
+    return config
+  })
+
+  return instance
+}
+
+// 工厂函数创建 Model API 实例
+export function createAPI(options: APIOptions, context?: AppContext): ModelAPIInstance {
+  const ctx = context || getConfig()
+  const host = getHost(options)
+  const model = options
+  const resource = resolveResource(options)
+
+  // 复用 createAPI 生成的 axios 实例
+  const instance = createHttp(options, context)
 
   // 实例方法
-  const api: APIInstance = {
+  const api: ModelAPIInstance = {
     model,
     host,
     resource,
-    headers: getHeaders(options as FetchOptions, ctx, resource, noTokenList, noGetTokenList),
-    noToken: noTokenList,
-    noGetToken: noGetTokenList,
 
-    fetch(uri: string, fetchOptions: FetchOptions = {}): Promise<APIResponse> {
+    fetch(uri: string, fetchOptions: FetchOptions = {}): Promise<FetchResponse> {
       const settings = ctx.settings
       const methods = ['DELETE', 'PATCH', 'PUT']
       let method = fetchOptions?.method
@@ -244,33 +262,23 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
         method = method === 'DELETE' ? 'GET' : 'POST'
       }
 
-      const newHeaders = {
-        ...(model.headers || {}),
-        ...(fetchOptions?.headers || {}),
-        ...getHeaders(fetchOptions, ctx, resource, noTokenList, noGetTokenList)
-      }
-
-      const isLogin = resource.indexOf('/auth/login') > -1
-      const finalHeaders = isLogin ? omit(newHeaders, 'Authorization') : newHeaders
-
       const axiosConfig: AxiosRequestConfig = {
         method: method || 'GET',
-        url: host + resource + uri,
-        headers: finalHeaders,
-        data: fetchOptions?.body
+        url: uri,
+        data: fetchOptions?.data ?? fetchOptions?.body,
+        ...fetchOptions
       }
 
-      return axios(axiosConfig).then((response: AxiosResponse) => ({
-        json: response.data,
-        status: response.status,
-        headers: response.headers as any
-      })).catch((error: any) => {
-        const err: any = {
-          json: error.response?.data || { _error: error.message },
-          status: error.response?.status
-        }
-        throw err
-      })
+      return instance.request(axiosConfig).then((response: AxiosResponse) => ({
+          ...response, json: response.data
+        })).catch((error: AxiosError) => {
+          const err: AxiosError & { json: any } = {
+            json: error.response?.data || { _error: error.message },
+            ...error
+          }
+          console.log('API request error:', err)
+          throw err
+        })
     },
 
     convert_format(v: any, schema: SchemaProperty): any {
@@ -319,7 +327,7 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
 
     count(filter: any = {}): Promise<number> {
       const filterString = encodeURIComponent(JSON.stringify({ where: filter['where'] || {} }))
-      return this.fetch(`count?query=${filterString}`).then(({ json }) => json['count'])
+      return this.fetch(`count?query=${filterString}`).then(({ data }) => data['count'])
     },
 
     convert(f: QueryOptions): any {
@@ -534,7 +542,9 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
       }
 
       return this.fetch(`?query=${filter_string}`, { noMessage: wheres.noMessage, apiMessage: model.apiMessage })
-        .then(({ json, headers }) => {
+        .then((response) => {
+          const json = response.data
+          const headers = response.headers
           return {
             items: json.map(this.convert_item.bind(this)),
             total: withCount ? (headers['count'] || json.length) : json.length
@@ -544,7 +554,8 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
 
     get(id: string = '', option?: FetchOptions): Promise<any> {
       return this.fetch(`/${resource === 'core/node' ? '_id/' + id : id}`, option || {})
-        .then(({ json }) => {
+        .then((response) => {
+          let json = response.data
           if (resource === 'core/user') {
             json = omit(json, 'password', 'password2')
           }
@@ -552,12 +563,12 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
         })
     },
 
-    getOrigin(id: string = ''): Promise<APIResponse> {
+    getOrigin(id: string = ''): Promise<FetchResponse> {
       return this.fetch(`/${resource === 'core/node' ? '_id/' + id : id}`)
     },
 
     delete(id: string = ''): Promise<any> {
-      return this.fetch(`/${id}`, { method: 'DELETE' }).then(({ json }) => ({ ...json, id }))
+      return this.fetch(`/${id}`, { method: 'DELETE' }).then((response) => ({ ...response.data, id }))
     },
 
     convert_data(data: any): any {
@@ -573,11 +584,11 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
         return new Promise((resolve, reject) => {
           this.fetch('', {
             method: 'POST',
-            body: JSON.stringify(data)
+            data
           })
-            .then(({ json }) => resolve(json))
+            .then((response) => resolve(response.data))
             .catch((err: any) => {
-              const json = err.json
+              const json = err?.response?.data
               reject({ json: { password: json ? json._error : '登录出现错误请联系系统管理员' } })
             })
         })
@@ -586,7 +597,7 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
       if (resource === 'core/setting') {
         return this.fetch('', {
           method: 'PATCH',
-          body: JSON.stringify(this.convert_data(data))
+          data: this.convert_data(data)
         }).then(() => data)
       }
 
@@ -598,10 +609,10 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
         }
         return this.fetch(`/${data.id}`, {
           method: !partial ? 'PUT' : 'PATCH',
-          body: JSON.stringify(this.convert_data(data))
-        }).then(({ json }) => ({
+          data: this.convert_data(data)
+        }).then((response) => ({
           ...data,
-          InsertedID: json?.InsertedID || json?.id
+          InsertedID: response.data?.InsertedID || response.data?.id
         }))
       } else {
         if (resource === 'core/node' || resource === 'core/department' || resource === 'core/t/schema' || data?.convertUidToId) {
@@ -612,17 +623,17 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
           return new Promise((resolve, reject) => {
             return this.fetch('', {
               method: 'POST',
-              body: JSON.stringify(this.convert_data(data))
+              data: this.convert_data(data)
             })
-              .then(({ json }) => {
+              .then((response) => {
                 resolve({
                   ...data,
-                  id: json?.InsertedID || json?.id
+                  id: response.data?.InsertedID || response.data?.id
                 })
               })
               .catch((err: any) => {
-                const json = err.json
-                if (json.id) {
+                const json = err?.response?.data
+                if (json?.id) {
                   reject({ json: { uid: json.id } })
                 } else {
                   reject({ json })
@@ -632,10 +643,10 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
         }
         return this.fetch('', {
           method: 'POST',
-          body: JSON.stringify(this.convert_data(data))
-        }).then(({ json }) => ({
+          data: this.convert_data(data)
+        }).then((response) => ({
           ...data,
-          id: json?.InsertedID || json?.id
+          id: response.data?.InsertedID || response.data?.id
         }))
       }
     }
@@ -644,4 +655,4 @@ export function createAPI(options: APIOptions, context?: AppContext): APIInstanc
   return api
 }
 
-export default createAPI
+export default createHttp

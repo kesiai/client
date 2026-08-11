@@ -1,5 +1,5 @@
 import React from 'react'
-import api from '../api'
+import { getHeaders } from '../api'
 
 // ============================================================================
 // Types
@@ -72,7 +72,7 @@ export const useCommWS = (): UseCommWSResult => {
     let connecting = false
     let forceDisconnect = false
     let reConnectCount = 0
-    let keepLiveTimer: NodeJS.Timeout | null = null
+    let keepLiveTimer: ReturnType<typeof setTimeout> | null = null
 
     const status = (status: string, event?: Event | CloseEvent) => {
       if (onStatusFunc.current) {
@@ -167,9 +167,11 @@ export const useCommWS = (): UseCommWSResult => {
 export const useWS = (): UseWSResult => {
   const { subscribe: commSubscribe, onData, onMessage, onStatus } = useCommWS()
 
-  const headers = api({ name: '' }).headers
-  const token = headers?.Authorization ? `token=${headers.Authorization}` : ''
-  const projectID = headers && headers['x-request-project']
+  // 直接取默认请求头，无需为此创建 api 实例
+  const defaultHeaders = getHeaders()
+  const authorization = defaultHeaders['Authorization']
+  const token = authorization ? `token=${authorization}` : ''
+  const projectID = defaultHeaders['x-request-project']
 
   const subscribe = React.useCallback((subType: string, query: any) => {
     const protocol = window.location.protocol.indexOf('https') === 0 ? 'wss' : 'ws'

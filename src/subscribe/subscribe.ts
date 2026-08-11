@@ -256,9 +256,9 @@ export const useTagWarningSubscribe = () => {
 
     const f = encodeURIComponent(JSON.stringify(reqData))
     api({ name: 'warning/warning/stats/latest' })
-      .fetch(`?tableData=${f}`, {})
+      .get(`?tableData=${f}`)
       .then((res) => {
-        const w = res?.json
+        const w = res?.data
         if (w && w.length > 0) {
           w.forEach((warningInfo: any) => {
             const fields = warningInfo?.fields
@@ -274,7 +274,7 @@ export const useTagWarningSubscribe = () => {
         }
       })
       .catch((error: any) => {
-        console.error('获取记录报警信息失败!', error?.detail || error?.json?.detail)
+        console.error('获取记录报警信息失败!', error?.detail || error?.response?.data?.detail)
       })
   }, [updateTagWarning])
 

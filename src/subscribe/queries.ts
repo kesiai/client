@@ -44,14 +44,12 @@ const queryMeta = async (subTags: SubTag[], callback?: (res: any) => void): Prom
       }
     })
     if (data.length == 0) { return }
-    const tagsdata = await api({ name: `core/t/tags` }).fetch('', {
-      headers: { "X-Forwarded-Method-Override": "GET" },
-      method: 'POST',
-      body: JSON.stringify(data)
+    const tagsdata = await api({ name: `core/t/tags` }).post('', data, {
+      headers: { "X-Forwarded-Method-Override": "GET" }
     })
-      .then(({ json }) => json)
+      .then(res => res.data)
       .catch(error => {
-        console.error('获取数据点配置失败', error?.detail || error?.json?.detail)
+        console.error('获取数据点配置失败', error?.detail || error?.response?.data?.detail)
         return undefined
       })
     const res: Record<string, any> = {}
@@ -81,14 +79,11 @@ const queryLastData = (where: any[], callback?: (res: any) => void): void => {
     tagId: f.tagId
   }))
   api({ name: 'core/data' })
-    .fetch('/latest', {
-      method: 'POST',
-      body: JSON.stringify(filterwhere)
-    })
-    .then(({ json }) => {
-      if (json && !_.isEmpty(json)) {
+    .post('/latest', filterwhere)
+    .then(({ data }) => {
+      if (data && !_.isEmpty(data)) {
         const payload: Record<string, any> = {}
-        json.forEach((item: any) => {
+        data.forEach((item: any) => {
           const tableId = item.tableId
           const id = item.tableDataId || item.id
           const tagId = item.tagId
@@ -113,10 +108,10 @@ const queryTableDataFn = (tableId: string, tableData: SubData[]): Promise<any[]>
     filter: { id: { "$in": Array.from(new Set(ids)) } }
   })
   return api({ name: `core/t/${tableId}/d` })
-    .fetch(`?query=${where}`)
-    .then(({ json }) => {
-      if (json && !_.isEmpty(json)) {
-        return json
+    .get(`?query=${where}`)
+    .then(({ data }) => {
+      if (data && !_.isEmpty(data)) {
+        return data
       }
       return []
     }).catch(_err => {
@@ -126,10 +121,10 @@ const queryTableDataFn = (tableId: string, tableData: SubData[]): Promise<any[]>
 
 const getTableDataFn = (tableId: string, dataId: string): Promise<any> => {
   return api({ name: `core/t/${tableId}/d/${dataId}` })
-    .fetch('', { method: 'GET' })
-    .then(({ json }) => {
-      if (json && !_.isEmpty(json)) {
-        return json
+    .get('')
+    .then(({ data }) => {
+      if (data && !_.isEmpty(data)) {
+        return data
       }
       return []
     }).catch(_err => {
@@ -181,12 +176,9 @@ const queryHistoryData = (tags: SubTag[], time: any, callback?: (res: any) => vo
       where: [`time <= '${dayjs(time).toISOString()}'`]
     }
   })
-  api({ name: 'core/data/query' }).fetch(``, {
-    method: 'POST',
-    body: JSON.stringify(where)
-  }).then(({ json }) => {
+  api({ name: 'core/data/query' }).post('', where).then(({ data }) => {
     const payload: Record<string, any> = {}
-    const results = json.results
+    const results = data.results
     if (results && results.length > 0) {
       results.forEach((item: any) => {
         if (!item) return

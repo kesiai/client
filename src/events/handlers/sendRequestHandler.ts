@@ -70,7 +70,7 @@ export const sendRequestHandler: ActionHandler = async (
         method,
         noMessage: true,
         headers: arrayToKv(headers),
-        body: (method === 'GET' || method === 'DELETE') ? '' : JSON.stringify(arrayToKv(body))
+        data: (method === 'GET' || method === 'DELETE') ? undefined : arrayToKv(body)
       })
     } else if (type === 'dataApi') { // 数据接口
       const path = op?.key ? `ds/p/${op.key}` : undefined
@@ -79,7 +79,7 @@ export const sendRequestHandler: ActionHandler = async (
         await apiClient.fetch('', {
           method: 'POST',
           noMessage: true,
-          body: JSON.stringify(requestParams?.value || {})
+          data: requestParams?.value || {}
         })
       } else {
         return { success: false, error: 'Invalid data API configuration' }

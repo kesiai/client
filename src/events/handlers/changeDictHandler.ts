@@ -99,7 +99,7 @@ export const changeDictHandler: ActionHandler = async (
     await updateApi.fetch(`/${currentSystemVar.id}`, {
       method: 'PATCH',
       noMessage: true,
-      body: JSON.stringify({ value: resultValue }),
+      data: { value: resultValue },
     })
 
     showResultMessage({ success: true }, params)

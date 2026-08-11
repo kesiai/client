@@ -34,7 +34,7 @@ export const changeUserHandler: ActionHandler = async (
       await api.fetch('', {
         method: 'PUT',
         noMessage: true,
-        body: JSON.stringify(data)
+        data
       })
     }
     if (showForm) {

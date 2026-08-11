@@ -57,7 +57,7 @@ export const changeTableDataHandler: ActionHandler = async (
       await api.fetch(`/${table.id}/d/${data.id}`, {
         method: 'PATCH',
         noMessage: true,
-        body: JSON.stringify(changeData)
+        data: changeData
       })
     } else {
       // 直接修改模式
@@ -69,7 +69,7 @@ export const changeTableDataHandler: ActionHandler = async (
       await api.fetch(`/${table.id}/d/${data.id}`, {
         method: 'PATCH',
         noMessage: true,
-        body: JSON.stringify(changeData)
+        data: changeData
       })
     }
 

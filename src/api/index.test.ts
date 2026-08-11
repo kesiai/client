@@ -1,14 +1,83 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import axios from 'axios'
-import { createAPI, setContext, getContext, type APIOptions } from '../api'
+import { createHttp, createAPI, type APIOptions } from '../api'
 
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios)
 
+let requestMock: ReturnType<typeof vi.fn>
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  // createHttp 返回 axios.create 的实例，这里让 create 返回一个可断言的请求函数
+  requestMock = vi.fn()
+  Object.assign(requestMock, {
+    interceptors: { request: { use: vi.fn() } },
+    defaults: {},
+    // fetch 内部通过 instance.request() 发请求，将其指向同一个 mock
+    request: requestMock
+  })
+  ;(mockedAxios.create as any) = vi.fn().mockReturnValue(requestMock)
+})
+
 describe('API Module', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    setContext({})
+  describe('createHttp', () => {
+    it('should return an axios instance configured with baseURL', () => {
+      const api = createHttp({ resource: 'test' })
+
+      expect(api).toBe(requestMock)
+      expect(mockedAxios.create).toHaveBeenCalledWith({
+        baseURL: '/rest/test'
+      })
+    })
+
+    it('should use custom proxyKey as baseURL', () => {
+      createHttp({ resource: 'test', proxyKey: '/api/' })
+
+      expect(mockedAxios.create).toHaveBeenCalledWith(expect.objectContaining({ baseURL: '/api/test' }))
+    })
+
+    it('should convert auth resource to core/auth', () => {
+      createHttp({ resource: 'auth/login' })
+
+      expect(mockedAxios.create).toHaveBeenCalledWith(expect.objectContaining({
+        baseURL: '/rest/core/auth/login'
+      }))
+    })
+
+    it('should add default headers via request interceptor', () => {
+      let interceptor: any
+      Object.assign(requestMock, {
+        interceptors: { request: { use: (fn: any) => { interceptor = fn } } }
+      })
+
+      createHttp({ resource: 'test' }, { user: { token: 'test-token' } })
+
+      const config: any = { headers: {} }
+      const result = interceptor(config)
+
+      expect(result).toBe(config)
+      expect(config.headers.Authorization).toBe('test-token')
+      expect(config.headers['Content-Type']).toBe('application/json')
+    })
+
+    it('should not override existing request headers in interceptor', () => {
+      let interceptor: any
+      Object.assign(requestMock, {
+        interceptors: { request: { use: (fn: any) => { interceptor = fn } } }
+      })
+
+      createHttp({ resource: 'test' }, { user: { token: 'test-token' } })
+
+      const config: any = { headers: { Authorization: 'existing-token' } }
+      interceptor(config)
+
+      expect(config.headers.Authorization).toBe('existing-token')
+    })
+
+    it('should throw error when resource is undefined', () => {
+      expect(() => createHttp({} as APIOptions)).toThrow('api option resource is undefined')
+    })
   })
 
   describe('createAPI', () => {
@@ -38,44 +107,26 @@ describe('API Module', () => {
 
       expect(api.resource).toBe('core/auth/login')
     })
-  })
 
-  describe('Context Management', () => {
-    it('should set and get context', () => {
-      const testContext = {
-        user: { token: 'test-token' },
-        language: 'en',
-        settings: { safeRequest: true }
-      }
+    it('should create its axios instance through createHttp', () => {
+      createAPI({ resource: 'test' })
 
-      setContext(testContext)
-      const context = getContext()
-
-      expect(context).toEqual(testContext)
-    })
-
-    it('should merge context when setting', () => {
-      setContext({ user: { token: 'token1' } })
-      setContext({ language: 'zh' })
-
-      const context = getContext()
-      expect(context.user).toEqual({ token: 'token1' })
-      expect(context.language).toBe('zh')
+      expect(mockedAxios.create).toHaveBeenCalled()
     })
   })
 
   describe('API.fetch', () => {
     it('should make GET request and return response', async () => {
       const mockResponse = { data: { id: 1, name: 'test' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.fetch('/1')
 
-      expect(result.json).toEqual({ id: 1, name: 'test' })
-      expect(mockedAxios).toHaveBeenCalledWith({
+      expect(result.data).toEqual({ id: 1, name: 'test' })
+      expect(requestMock).toHaveBeenCalledWith({
         method: 'GET',
-        url: '/rest/test/1',
+        url: '/1',
         headers: expect.any(Object),
         data: undefined
       })
@@ -83,69 +134,64 @@ describe('API Module', () => {
 
     it('should make POST request', async () => {
       const mockResponse = { data: { success: true }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.fetch('', { method: 'POST', body: '{"name":"test"}' })
 
-      expect(result.json).toEqual({ success: true })
-      expect(mockedAxios).toHaveBeenCalledWith({
+      expect(result.data).toEqual({ success: true })
+      expect(requestMock).toHaveBeenCalledWith({
         method: 'POST',
-        url: '/rest/test',
+        url: '',
         headers: expect.any(Object),
         data: '{"name":"test"}'
       })
     })
 
-    it('should handle errors and throw with status', async () => {
+    it('should handle errors and reject with the raw axios error', async () => {
       const error = {
         response: {
           status: 404,
           data: { error: 'Not found' }
         }
       }
-      mockedAxios.mockRejectedValue(error as any)
+      requestMock.mockRejectedValue(error as any)
 
       const api = createAPI({ resource: 'test' })
 
-      await expect(api.fetch('/invalid')).rejects.toEqual({
-        json: { error: 'Not found' },
-        status: 404
-      })
+      await expect(api.fetch('/invalid')).rejects.toEqual(error)
     })
 
-    it('should remove Authorization header for login', async () => {
-      setContext({ user: { token: 'test-token' } })
+    it('should remove Authorization header when ignoreAuthorization is set', async () => {
       const mockResponse = { data: { token: 'new-token' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
-      const api = createAPI({ resource: 'auth/login' })
+      const api = createAPI({ resource: 'auth/login', ignoreAuthorization: true }, { user: { token: 'test-token' } })
       await api.fetch('', { method: 'POST', body: '{}' })
 
-      const callArgs = mockedAxios.mock.calls[0][0] as any
+      const callArgs = requestMock.mock.calls[0][0] as any
       expect(callArgs.headers.Authorization).toBeUndefined()
     })
 
     it('should add Authorization header when user has token', async () => {
-      setContext({ user: { token: 'test-token' } })
       const mockResponse = { data: { id: 1 }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
-      const api = createAPI({ resource: 'test' })
+      const api = createAPI({ resource: 'test' }, { user: { token: 'test-token' } })
       await api.fetch('/1')
 
-      const callArgs = mockedAxios.mock.calls[0][0] as any
+      const callArgs = requestMock.mock.calls[0][0] as any
       expect(callArgs.headers.Authorization).toBe('test-token')
     })
 
     it('should add custom headers', async () => {
       const mockResponse = { data: { id: 1 }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test', headers: { 'X-Custom': 'value' } })
       await api.fetch('/1')
 
-      const callArgs = mockedAxios.mock.calls[0][0] as any
+      const callArgs = requestMock.mock.calls[0][0] as any
       expect(callArgs.headers['X-Custom']).toBe('value')
     })
   })
@@ -153,7 +199,7 @@ describe('API Module', () => {
   describe('API.get', () => {
     it('should get single item by id', async () => {
       const mockResponse = { data: { id: '1', name: 'test' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.get('1')
@@ -163,19 +209,19 @@ describe('API Module', () => {
 
     it('should get without id', async () => {
       const mockResponse = { data: { items: [] }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.get()
 
-      expect(result).toEqual({ items: [] })
+      expect(result).toEqual(expect.objectContaining({ items: [] }))
     })
   })
 
   describe('API.query', () => {
     it('should query with filter', async () => {
-      const mockResponse = { data: { items: [{ id: 1 }], total: 1 }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      const mockResponse = { data: [{ id: 1 }], headers: { count: 1 } }
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.query({ name: 'test' })
@@ -185,8 +231,8 @@ describe('API Module', () => {
     })
 
     it('should query with empty filter', async () => {
-      const mockResponse = { data: { items: [], total: 0 }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      const mockResponse = { data: [], headers: {} }
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.query()
@@ -199,7 +245,7 @@ describe('API Module', () => {
   describe('API.save', () => {
     it('should save new item', async () => {
       const mockResponse = { data: { id: '1', name: 'new' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.save({ name: 'new' })
@@ -208,45 +254,45 @@ describe('API Module', () => {
     })
 
     it('should save existing item', async () => {
-      const mockResponse = { data: { id: '1', name: 'updated' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      const mockResponse = { data: { id: '1' }, headers: {} }
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.save({ id: '1', name: 'updated' })
 
-      expect(result).toEqual({ id: '1', name: 'updated' })
+      expect(result).toEqual({ id: '1', name: 'updated', InsertedID: '1' })
     })
 
     it('should save partial data', async () => {
-      const mockResponse = { data: { id: '1', name: 'updated' }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      const mockResponse = { data: { id: '1' }, headers: {} }
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.save({ id: '1', name: 'updated' }, true)
 
-      expect(result).toEqual({ id: '1', name: 'updated' })
+      expect(result).toEqual({ id: '1', name: 'updated', InsertedID: '1' })
     })
   })
 
   describe('API.delete', () => {
     it('should delete item by id', async () => {
       const mockResponse = { data: { success: true }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.delete('1')
 
-      expect(result).toEqual({ success: true })
+      expect(result).toEqual({ success: true, id: '1' })
     })
 
     it('should delete without id', async () => {
       const mockResponse = { data: { success: true }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const result = await api.delete()
 
-      expect(result).toEqual({ success: true })
+      expect(result).toEqual({ success: true, id: '' })
     })
   })
 
@@ -281,6 +327,7 @@ describe('API Module', () => {
     it('should convert item using properties', () => {
       const api = createAPI({
         resource: 'test',
+        type: 'object',
         properties: {
           date: { format: 'date' },
           name: {}
@@ -312,8 +359,8 @@ describe('API Module', () => {
 
   describe('API.count', () => {
     it('should return count', async () => {
-      const mockResponse = { data: { items: [{ id: 1 }, { id: 2 }], total: 2 }, headers: {} }
-      mockedAxios.mockResolvedValue(mockResponse as any)
+      const mockResponse = { data: { count: 2 }, headers: {} }
+      requestMock.mockResolvedValue(mockResponse as any)
 
       const api = createAPI({ resource: 'test' })
       const count = await api.count()

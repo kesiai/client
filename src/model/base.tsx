@@ -2,7 +2,7 @@ import React from 'react'
 import isEmpty from 'lodash/isEmpty'
 import isFunction from 'lodash/isFunction'
 import modelAtoms, { ModelAtoms } from './atoms'
-import { createAPI, type APIOptions, type API } from '../api'
+import { createAPI, type APIOptions, type ModelAPIInstance } from '../api'
 import { useAtomCallback } from 'jotai/utils'
 import models from './models.json'
 
@@ -42,7 +42,7 @@ interface ModelSchema {
 interface ModelContextType {
   model: ModelSchema
   atoms: ModelAtoms
-  api: API
+  api: ModelAPIInstance
   [key: string]: any
 }
 

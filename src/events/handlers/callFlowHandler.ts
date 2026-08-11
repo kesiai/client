@@ -23,13 +23,13 @@ export const callFlowHandler: ActionHandler = async (
 
     const executionFlowApi = async ({ flowId, variable }: { flowId: string; variable: any }) => manualTriggerApi.fetch('', {
       method: 'POST',
-      body: JSON.stringify({ flowId, variable })
+      data: { flowId, variable }
     })
 
     if (showForm) {
       // 如果需要展示表单，先获取流程的输入变量定义
       const flowDetailApi = createAPI({ name: 'flow/flow/' })
-      const schema = await flowDetailApi.fetch(flow.id, { headers: { cache: 'no-cache' } }).then(({ json }) => json?.settings?.schema)
+      const schema = await flowDetailApi.fetch(flow.id, { headers: { cache: 'no-cache' } }).then(({ data }) => data?.settings?.schema)
 
       const formData = await showSchemaFormDialog({
         schema,

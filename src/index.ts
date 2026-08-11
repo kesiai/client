@@ -1,4 +1,4 @@
-import createAPI from './api'
+import { createAPI, createHttp, getHeaders } from './api'
 
 export {
   Model, TableModel,
@@ -51,8 +51,12 @@ export type {
 export const api = createAPI
 
 export {
-  createAPI
+  createAPI,
+  createHttp,
+  getHeaders
 }
+
+export const createAxios = createHttp
 
 export * from './events'
 

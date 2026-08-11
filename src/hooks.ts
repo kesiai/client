@@ -17,7 +17,7 @@ export const getSettings = async () => {
     }
   }
   return await api({ name: url })
-        .fetch('', {}).then(res => res?.json || {})
+        .get('').then(res => res?.data || {})
 }
 
 export const useMessage = () => {

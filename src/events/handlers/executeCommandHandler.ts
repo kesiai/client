@@ -53,12 +53,12 @@ const sendCommand = async (commandType: string, command: any, deviceId: any, par
   await sendAPI.fetch('', {
     method: 'POST',
     noMessage: true,
-    body: JSON.stringify(data)
+    data
   })
 
   // 获取响应数据
   const response = await sendAPI.getOrigin('')
-  return response?.json || {}
+  return response?.data || {}
 }
 
 // 根据 command.form 构造 schema
@@ -185,11 +185,11 @@ export const executeCommandHandler: ActionHandler = async (
         const response = await sendAPI.fetch('', {
           method: 'POST',
           noMessage: true,
-          body: JSON.stringify(data)
+          data
         })
 
         showResultMessage({ success: true }, params)
-        return { success: true, data: response?.json || {} }
+        return { success: true, data: response?.data || {} }
       } else { // 同步批量 - 使用串行或并行执行
         if (commandStyle) {
           // 查询符合条件的节点
