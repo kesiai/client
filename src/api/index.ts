@@ -215,12 +215,12 @@ export function createHttp(options: APIOptions, context?: AppContext): AxiosInst
   const ctx = context || getConfig()
   const resource = resolveResource(options)
 
-  const instance = axios.create({
-    baseURL: getHost(options),
-    ...ctx.axiosConfig
-  })
+  const instance = axios.create(ctx.axiosConfig || {})
 
   instance.interceptors.request.use((config) => {
+    if(!config.baseURL) {
+      config.baseURL = getHost(options)
+    }
     const headers = getHeaders(options as FetchOptions, ctx)
     const cfgHeaders = config.headers as Record<string, any>
     Object.keys(headers).forEach((key) => {
@@ -276,7 +276,6 @@ export function createAPI(options: APIOptions, context?: AppContext): ModelAPIIn
             json: error.response?.data || { _error: error.message },
             ...error
           }
-          console.log('API request error:', err)
           throw err
         })
     },
