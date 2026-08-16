@@ -1,4 +1,4 @@
-import React, { createContext, useContext, Context } from "react"
+import React, { createContext, Context } from "react"
 import type { Store } from 'jotai/vanilla/store'
 import type { UseFormReturn } from 'react-hook-form'
 
@@ -69,7 +69,7 @@ export const FormProvider = ({
  * const { store, methods, setFieldUIState } = useFormContext()
  */
 export const useFormContext = (): FormContextValue => {
-  const value = useContext(FormContext as Context<FormContextValue | null>)
+  const value = React.useContext(FormContext as Context<FormContextValue | null>)
 
   if (!value) {
     throw new Error("useFormContext must be used within a FormProvider")

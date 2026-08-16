@@ -75,19 +75,3 @@ export type {
 export type {
   UseFormPropsExtended
 } from './form'
-
-// 新 HTTP 模块（给生成的前端项目使用）
-export { createHttpClient, createResourceClient } from './http'
-
-export type {
-  HttpClient,
-  HttpClientConfig,
-  RequestOptions,
-  ApiResponse,
-  HttpError,
-  SortDirection,
-  QueryFilter,
-  PagedResponse,
-  ResourceConfig,
-  ResourceClient,
-} from './http'

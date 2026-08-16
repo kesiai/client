@@ -26,7 +26,7 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(import.meta.dirname, 'src/index.ts'),
       name: 'KesiClient',
       fileName: (format) => `kesi-client.${format}.js`,
       formats: ['es', 'umd']
