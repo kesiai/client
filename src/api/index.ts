@@ -228,8 +228,14 @@ export function createHttp(options: APIOptions, context?: AppContext): AxiosInst
         cfgHeaders[key] = headers[key]
       }
     })
-    if(resource) {
-      config.url = `${resource}${config.url}`
+
+    if (resource) {
+      const base = resource.replace(/\/$/, '')
+      let path = String(config.url || '').replace(/^\//, '')
+      if(path.length > 0 && path[0] !== '?') {
+        path = '/' + path
+      }
+      config.url = path ? `${base}${path}` : base
     }
     return config
   })
@@ -253,7 +259,7 @@ export function createAPI(options: APIOptions, context?: AppContext): ModelAPIIn
     host,
     resource,
 
-    fetch(uri: string, fetchOptions: FetchOptions = {}): Promise<FetchResponse> {
+    fetch(url: string, fetchOptions: FetchOptions = {}): Promise<FetchResponse> {
       const settings = ctx.settings
       const methods = ['DELETE', 'PATCH', 'PUT']
       let method = fetchOptions?.method
@@ -264,7 +270,7 @@ export function createAPI(options: APIOptions, context?: AppContext): ModelAPIIn
 
       const axiosConfig: AxiosRequestConfig = {
         method: method || 'GET',
-        url: uri,
+        url: url,
         data: fetchOptions?.data ?? fetchOptions?.body,
         ...fetchOptions
       }

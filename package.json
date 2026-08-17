@@ -62,6 +62,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "axios": "^1.13.6",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.11.20",
     "jotai": "^2.18.1",
     "lodash": "^4.17.23",
