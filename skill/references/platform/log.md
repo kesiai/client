@@ -5,10 +5,9 @@
 ## 操作日志（`core/log`）
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/log' })
-const logApi = createResourceClient<Log>({ client, resource: 'core/log' })
+const logApi = createAPI({ resource: 'core/log' })
 ```
 
 ### 字段
@@ -57,8 +56,7 @@ const { items } = await logApi.query(
 ## 系统日志（`syslog/log`）
 
 ```typescript
-const sysClient = createHttpClient({ resource: 'syslog/log' })
-const sysLogApi = createResourceClient<SysLog>({ client: sysClient, resource: 'syslog/log' })
+const sysLogApi = createAPI({ resource: 'syslog/log' })
 ```
 
 ### 字段

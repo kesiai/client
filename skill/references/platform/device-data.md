@@ -9,10 +9,9 @@
 数据点定义存储在表 schema 的 `device.tags` 数组中：
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/t/schema' })
-const schemaApi = createResourceClient({ client, resource: 'core/t/schema' })
+const schemaApi = createAPI({ resource: 'core/t/schema' })
 const schema = await schemaApi.get('hvac_system')
 const tags = schema.device?.tags || []
 ```
@@ -35,11 +34,11 @@ POST /core/t/tags
 ```
 
 ```typescript
-const tagClient = createHttpClient({ resource: 'core/t/tags' })
-const res = await tagClient.request('', {
+const tagApi = createAPI({ resource: 'core/t/tags' })
+const res = await tagApi.fetch('', {
   method: 'POST',
   headers: { 'X-Forwarded-Method-Override': 'GET' },
-  body: [
+  data: [
     { tableId: 'hvac_system', ids: ['device-001', 'device-002'] },
   ],
 })
@@ -57,10 +56,10 @@ POST /core/data/latest
 ```
 
 ```typescript
-const dataClient = createHttpClient({ resource: 'core/data' })
-const res = await dataClient.request('/latest', {
+const dataApi = createAPI({ resource: 'core/data' })
+const res = await dataApi.fetch('/latest', {
   method: 'POST',
-  body: [
+  data: [
     { tableId: 'hvac_system', id: 'device-001', tagId: 'temperature' },
   ],
 })
@@ -72,10 +71,10 @@ const res = await dataClient.request('/latest', {
 **端点：** `POST /core/data/query`
 
 ```typescript
-const queryClient = createHttpClient({ resource: 'core/data/query' })
-const res = await queryClient.request('', {
+const queryApi = createAPI({ resource: 'core/data/query' })
+const res = await queryApi.fetch('', {
   method: 'POST',
-  body: [{
+  data: [{
     tableId: 'hvac_system',
     id: 'device-001',
     fields: ['"temperature"'],
@@ -164,9 +163,9 @@ where: [
 **原始历史数据（不分组）：**
 
 ```typescript
-const res = await queryClient.request('', {
+const res = await queryApi.fetch('', {
   method: 'POST',
-  body: [{
+  data: [{
     tableId: 'hvac_system', id: 'device-001',
     fields: ['"temperature"'],
     where: ["time >= '2024-06-01T00:00:00Z'", "time <= '2024-06-02T00:00:00Z'"],
@@ -178,9 +177,9 @@ const res = await queryClient.request('', {
 **按小时聚合平均值：**
 
 ```typescript
-const res = await queryClient.request('', {
+const res = await queryApi.fetch('', {
   method: 'POST',
-  body: [{
+  data: [{
     tableId: 'hvac_system', id: 'device-001',
     fields: ['MEAN("temperature") AS "temperature"'],
     where: ["time >= '2024-06-01T00:00:00Z'"],
@@ -192,9 +191,9 @@ const res = await queryClient.request('', {
 **取最新值：**
 
 ```typescript
-const res = await queryClient.request('', {
+const res = await queryApi.fetch('', {
   method: 'POST',
-  body: [{
+  data: [{
     tableId: 'hvac_system', id: 'device-001',
     fields: ['LAST("temperature") AS "temperature"', 'id'],
     where: ["time <= '2024-06-10T12:00:00Z'"],

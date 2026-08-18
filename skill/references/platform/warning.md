@@ -4,14 +4,12 @@
 
 ## 报警事件（`warning/warning`）
 
-> ⚠️ **报警 API 不支持 `projectAll`**，查询时必须通过 `fields` 参数指定返回字段。`createResourceClient` 会自动将 `fields` 数组转换为 MongoDB 投影格式 `project: { field: 1 }`。
+> ⚠️ **报警 API 不支持 `projectAll`**，查询时必须通过 `fields` 参数指定返回字段。`createAPI().query` 会自动将 `fields` 数组转换为 MongoDB 投影格式 `project: { field: 1 }`。
 
 ```typescript
-const client = createHttpClient({ resource: 'warning/warning' })
-const warningApi = createResourceClient<Warning>({
-  client,
-  resource: 'warning/warning',
-})
+import { createAPI } from '@kesi/client'
+
+const warningApi = createAPI({ resource: 'warning/warning' })
 
 // ⚠️ 必须传 fields，不能省略
 const { items } = await warningApi.query({
@@ -74,8 +72,8 @@ const { items } = await warningApi.query(
   { $and: [{ processed: { $eq: '未处理' } }, { level: { $eq: '高' } }] }
 )
 
-// 统计未确认报警数
-const count = await warningApi.count({ status: { $eq: '未确认' } })
+// 统计未确认报警数（条件包在 where 里）
+const count = await warningApi.count({ where: { status: { $eq: '未确认' } } })
 ```
 
 **确认和处理操作：**
@@ -96,21 +94,17 @@ await warningApi.save({
   recoverNote: '已处理',
 }, true)
 
-// 批量确认（使用 raw）
-await warningApi.raw('/batch-confirm', {
+// 批量确认（使用 fetch）
+await warningApi.fetch('/batch-confirm', {
   method: 'POST',
-  body: { ids: ['alarm-001', 'alarm-002'], note: '批量确认', userId: 'user-id' },
+  data: { ids: ['alarm-001', 'alarm-002'], note: '批量确认', userId: 'user-id' },
 })
 ```
 
 ## 报警规则（`warning/rule`）
 
 ```typescript
-const client = createHttpClient({ resource: 'warning/rule' })
-const ruleApi = createResourceClient<WarningRule>({
-  client,
-  resource: 'warning/rule',
-})
+const ruleApi = createAPI({ resource: 'warning/rule' })
 ```
 
 **固定字段：**
@@ -127,13 +121,15 @@ const ruleApi = createResourceClient<WarningRule>({
 
 ```typescript
 // 报警统计
-const stats = await warningApi.raw<WarningStats>('/statistics')
+const stats = await warningApi.fetch('/statistics')
+// stats.data 即 WarningStats
 
 // 最新报警
-const latest = await warningApi.raw<WarningItem[]>('/latest', {
+const latest = await warningApi.fetch('/latest', {
   method: 'POST',
-  body: { limit: 10 },
+  data: { limit: 10 },
 })
+// latest.data 即 WarningItem[]
 ```
 
 ## 报警归档（`warning/warning/archive`）
@@ -141,11 +137,7 @@ const latest = await warningApi.raw<WarningItem[]>('/latest', {
 结构与报警事件相同，用于存储已归档的历史报警。
 
 ```typescript
-const client = createHttpClient({ resource: 'warning/warning/archive' })
-const warningArchiveApi = createResourceClient<WarningArchive>({
-  client,
-  resource: 'warning/warning/archive',
-})
+const warningArchiveApi = createAPI({ resource: 'warning/warning/archive' })
 ```
 
 ## 报警实时订阅

@@ -3,10 +3,9 @@
 > 数据表定义的 CRUD。获取表结构、字段定义、设备配置。
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/t/schema' })
-const schemaApi = createResourceClient<TableSchema>({ client, resource: 'core/t/schema' })
+const schemaApi = createAPI({ resource: 'core/t/schema' })
 ```
 
 ## 字段
@@ -42,6 +41,6 @@ const { items } = await schemaApi.query({ limit: 100 }, { template: { $eq: 'devi
 const schema = await schemaApi.get('energy_meter')
 
 // 获取子表
-const client2 = createHttpClient({ resource: 'core/t/schema' })
-const { data } = await client2.request('/energy_meter/children')
+const schemaApi2 = createAPI({ resource: 'core/t/schema' })
+const { data } = await schemaApi2.fetch('/energy_meter/children')
 ```

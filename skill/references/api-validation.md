@@ -18,25 +18,26 @@
 
 ### A. 字段投影
 
-**断言**：扫描所有 `createResourceClient` + `.query()` 调用，按 resource 分类：
+**断言**：扫描所有 `createAPI` + `.query()` 调用，按 resource 分类：
 
-- resource 形如 `core/t/{xxx}/d`（**自定义表**）→ query 的 filter **不得出现 `fields`**（依赖 SDK 自动 `projectAll` 返回全部字段）
-- **平台资源**（`core/user` `core/role` `core/log` `syslog/log` `driver/driverInstance` `core/systemVariable` `core/catalog` `warning/warning` 等）→ query **必须传 `fields`**，显式列出
+- resource 形如 `core/t/{xxx}/d`（**自定义表**）→ API 实例创建时**必须传 `projectAll: true`**，且 query 的 filter **不得出现 `fields`**（字段动态无法穷举）
+- **平台资源**（`core/user` `core/role` `core/log` `syslog/log` `driver/driverInstance` `core/systemVariable` `core/catalog` `warning/warning` 等）→ query **必须传 `fields`**（或创建时传 `projectFields`），显式列出
 
 ```typescript
 // ❌ 自定义表传了不完整 fields → 静默丢字段
-api.query({ filter: { fields: ['id', 'name'] } })   // resource: core/t/building/d
+api.query({ fields: ['id', 'name'] })       // resource: core/t/building/d
 
-// ✅ 自定义表不传 fields（SDK projectAll）；平台资源显式列
-api.query({})                                        // resource: core/t/building/d
-userApi.query({ filter: { fields: ['id', 'name'] } }) // resource: core/user
+// ✅ 自定义表创建时 projectAll、查询不传 fields；平台资源显式列
+const api = createAPI({ resource: 'core/t/building/d', projectAll: true })
+api.query({})
+userApi.query({ fields: ['id', 'name'] })   // resource: core/user
 ```
 
 依据：client-api.md「字段投影规则」、[INDEX.md](INDEX.md)「关键约束速记」
 
 ### B. 数据点来源
 
-**断言**：`design-report.json` 中页面 `displayFields` 里 `type:"tag"` 的字段，对应代码**不能从 `createResourceClient.query()` 取值**，必须经 `fetchLatestTags` / `useTag` / `useTableData` / `core/data/query`。tagId 应来自 scan 数据的 `tags[].id`。
+**断言**：`design-report.json` 中页面 `displayFields` 里 `type:"tag"` 的字段，对应代码**不能从 `createAPI.query()` 取值**，必须经 `fetchLatestTags` / `useTag` / `useTableData` / `core/data/query`。tagId 应来自 scan 数据的 `tags[].id`。
 
 > `query()` 只返回 schema 字段，**不返回 tags 值**。
 
@@ -56,10 +57,10 @@ const tags = await fetchLatestTags([{ tableId, id, tagId: 'temperature' }])
 
 ```typescript
 // ❌ 单对象
-request('core/data/query', { method: 'POST', body: { tableId, tags, where } })
+queryApi.fetch('', { method: 'POST', data: { tableId, tags, where } })
 
 // ✅ 数组
-request('core/data/query', { method: 'POST', body: [{ tableId, tags, where }] })
+queryApi.fetch('', { method: 'POST', data: [{ tableId, tags, where }] })
 ```
 
 依据：client-api.md
@@ -91,16 +92,14 @@ const body = [{ tableId: 'device', id: 'd001', tagId: 'temperature' }]
 
 ### F. resource 一致性
 
-**断言**：每个 `createResourceClient` 的 `resource` 与其内部 `createHttpClient` 的 `resource` 字符串**一致**（拼写错位会导致 404）。
+**断言**：每个 `createAPI` 的 `resource` 字符串与 scan 数据的表 ID **一致**（拼写错位会导致 404）。
 
 ```typescript
-// ❌ 两处 resource 不一致
-const client = createHttpClient({ resource: 'core/t/building/d' })
-const api = createResourceClient({ client, resource: 'core/t/building_info/d' })
+// ❌ 表 ID 实为 building，拼写错误 → 404
+const api = createAPI({ resource: 'core/t/building_info/d' })
 
-// ✅ 一致
-const resource = 'core/t/building/d'
-const api = createResourceClient({ client: createHttpClient({ resource }), resource })
+// ✅ 与 scan 数据一致
+const api = createAPI({ resource: 'core/t/building/d', projectAll: true })
 ```
 
 依据：client-api.md
@@ -114,7 +113,7 @@ const api = createResourceClient({ client: createHttpClient({ resource }), resou
 for (const t of tables) total += await api(t).count()
 
 // ✅ systemVariable
-const { items } = await sysVarApi.query({ filter: { fields: ['id', 'uid', 'value'] } })
+const { items } = await sysVarApi.query({ fields: ['id', 'uid', 'value'] })
 ```
 
 依据：SKILL.md「页面设计报告」规则、[system-variable.md](platform/system-variable.md)
@@ -201,7 +200,7 @@ const { value } = useTag({ tableId, id, tagId: 'temperature' })
 
 ```bash
 # 定位所有资源客户端与查询调用
-grep -rn "createResourceClient" src/
+grep -rn "createAPI(" src/
 grep -rn "\.query(" src/
 
 # 定位设备数据点请求（应为数组、点结构、聚合约束）

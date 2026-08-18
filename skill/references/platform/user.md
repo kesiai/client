@@ -3,10 +3,9 @@
 > 用户 CRUD、在线状态、角色关联。
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/user' })
-const userApi = createResourceClient<User>({ client, resource: 'core/user' })
+const userApi = createAPI({ resource: 'core/user' })
 ```
 
 ## 字段

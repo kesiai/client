@@ -11,10 +11,10 @@ GET /core/t/schema/command/<tableId>
 ```
 
 ```typescript
-import { createHttpClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/t/schema/command' })
-const res = await client.request('/lighting_system')
+const cmdApi = createAPI({ resource: 'core/t/schema/command' })
+const res = await cmdApi.fetch('/lighting_system')
 // res.data = [{ ...command }]
 ```
 
@@ -26,8 +26,8 @@ Body: ["tableId1", "tableId2"]
 ```
 
 ```typescript
-const client = createHttpClient({ resource: 'core/t/schema/commands' })
-const res = await client.request('', {
+const cmdsApi = createAPI({ resource: 'core/t/schema/commands' })
+const res = await cmdsApi.fetch('', {
   method: 'POST',
   data: ['lighting_system', 'hvac_system'],
 })
@@ -39,8 +39,7 @@ const res = await client.request('', {
 指令定义也存储在表 schema 的 `device.commands` 数组中：
 
 ```typescript
-const schemaClient = createHttpClient({ resource: 'core/t/schema' })
-const schemaApi = createResourceClient({ client: schemaClient, resource: 'core/t/schema' })
+const schemaApi = createAPI({ resource: 'core/t/schema' })
 const schema = await schemaApi.get('lighting_system')
 const commands = schema.device?.commands || []
 ```
@@ -166,12 +165,12 @@ const cmdApi = createAPI({
 
 await cmdApi.fetch('', {
   method: 'POST',
-  body: JSON.stringify({
+  data: {
     ...command,           // 完整 command 对象
     table: tableId,       // 表 ID
     tableData: deviceId,  // 设备 ID
     params,               // 指令参数
-  }),
+  },
 })
 ```
 

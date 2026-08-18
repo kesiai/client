@@ -3,10 +3,9 @@
 > 驱动实例查询、驱动 Schema 查询。
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'driver/driverInstance' })
-const driverApi = createResourceClient<Driver>({ client, resource: 'driver/driverInstance' })
+const driverApi = createAPI({ resource: 'driver/driverInstance' })
 ```
 
 ## 字段
@@ -47,7 +46,7 @@ const driver = await driverApi.get('driver-001')
 查询驱动类型支持的数据点字段定义和设置配置：
 
 ```typescript
-const schemaClient = createHttpClient({ resource: 'driver/driver/modbus/schema' })
-const { data } = await schemaClient.request('')
+const schemaApi = createAPI({ resource: 'driver/driver/modbus/schema', ignoreAuthorization: true })
+const { data } = await schemaApi.fetch('')
 // 返回：tags 字段定义、settings 配置定义
 ```

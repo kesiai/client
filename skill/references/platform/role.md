@@ -3,10 +3,9 @@
 > 角色 CRUD、权限配置、用户关联。
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/role' })
-const roleApi = createResourceClient<Role>({ client, resource: 'core/role' })
+const roleApi = createAPI({ resource: 'core/role' })
 ```
 
 ## 字段

@@ -8,7 +8,7 @@
 
 | 文件 | 模块 | 说明 | 关键 API |
 |------|------|------|---------|
-| [client-api.md](client-api.md) | HTTP 模块 | HTTP 客户端 + 资源 CRUD 封装 | `createHttpClient`, `createResourceClient` |
+| [client-api.md](client-api.md) | HTTP 模块 | Model API 实例（HTTP + CRUD 一体） | `createAPI`, `createHttp` |
 | [client-auth.md](client-auth.md) | 认证模块 | 登录、验证码、用户信息 | `useLogin`, `useUser` |
 | [client-config.md](client-config.md) | 配置模块 | 全局配置、Toast 消息 | `setConfig`, `getConfig`, `useMessage` |
 | [client-event.md](client-event.md) | 事件系统 | UI 交互事件绑定（点击、双击等） | `useEvents`, `useEvent` |
@@ -56,9 +56,9 @@
 
 ## 关键约束速记
 
-- **表字段 vs 数据点**：`createResourceClient.query()` 只返回 schema 字段，不返回 tags 值
+- **表字段 vs 数据点**：`createAPI.query()` 只返回 schema 字段，不返回 tags 值
 - **数据点必须用专用 API**：`fetchLatestTags`（当前值）/ `useTag`（实时订阅）/ `core/data/query`（历史）
 - **报警查询必须传 fields**：不支持 `projectAll`
-- **字段投影规则**：自定义表（`core/t/*/d`）字段动态 → **不传 fields**（SDK 自动 projectAll）；平台资源（user/role/log/driver/catalog 等）字段固定 → **必须传 fields**
+- **字段投影规则**：自定义表（`core/t/*/d`）字段动态 → 创建 API 实例时传 `projectAll: true` 且**不传 fields**；平台资源（user/role/log/driver/catalog 等）字段固定 → **必须传 fields**
 - **系统变量不支持 get(id)**：`core/systemVariable` 取单条必须用 `query` 按 `id`/`uid` 过滤（仪表盘统计卡片常用）
 - **表记录路径带 `/d`**：`core/t/{tableId}/d`，其他平台资源不带

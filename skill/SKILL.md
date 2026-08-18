@@ -80,10 +80,10 @@ description: "KESI 前端架构师 — 接收 kesi-cli 的 scan 数据，结合�
 
 | 场景 | 获取方式 | 详细文档 |
 |------|---------|---------|
-| 页面级数据查询 | `createResourceClient.query` / `.count` | [references/client-api.md](references/client-api.md) |
+| 页面级数据查询 | `createAPI.query` / `.count` | [references/client-api.md](references/client-api.md) |
 | 实时数据点订阅 | `useTag` | [references/client-subscribe.md](references/client-subscribe.md) |
 | 实时字段变化 | `useTableData` | [references/client-subscribe.md](references/client-subscribe.md) |
-| 历史趋势数据 | `createHttpClient` + POST `core/data/query` | [references/platform/device-data.md](references/platform/device-data.md) |
+| 历史趋势数据 | `createAPI.fetch` + POST `core/data/query` | [references/platform/device-data.md](references/platform/device-data.md) |
 | CRUD 操作 | `ViewModel` | 交接给 kesi-ui |
 
 **4. 页面生成规则：**
@@ -121,19 +121,19 @@ KESI 设备表有**两种完全不同的数据**，绝不能混淆：
 
 | 类型 | 说明 | 查询方式 |
 |------|------|---------|
-| **表字段** | Schema 定义的静态属性 | `createResourceClient.query()` |
+| **表字段** | Schema 定义的静态属性 | `createAPI.query()` |
 | **数据点（tags）** | 设备采集的实时传感器数据 | `fetchLatestTags` / `useTag` / `core/data/query` |
 
-**设备传感器数据绝不能从 `createResourceClient.query()` 获取。**
+**设备传感器数据绝不能从 `createAPI.query()` 获取。**
 
 ### ⚠️ 核心规则：字段投影（fields vs projectAll）
 
-后端默认只按 `tableSchema` 投影，不加投影参数自定义字段会丢失。SDK 行为：`filter.fields` 为空时自动注入 `projectAll: true`。
+后端默认只按 `tableSchema` 投影，不加投影参数自定义字段会丢失。投影是 `createAPI` 创建实例时的显式选项（`projectAll` / `projectFields`）。
 
 | 数据源 | 字段特征 | 生成代码规则 |
 |--------|---------|------------|
-| 自定义表 `core/t/{tableId}/d` | 动态（schema 定义，无法穷举） | **不传 fields**，依赖默认 projectAll 返回全部字段 |
-| 平台资源 `core/user`、`core/role`、`core/log`、`driver/driverInstance` 等 | 固定 | **必须传 fields**，显式列出（字段表见各 `references/platform/*.md`） |
+| 自定义表 `core/t/{tableId}/d` | 动态（schema 定义，无法穷举） | 创建时 `createAPI({ resource, projectAll: true })`，查询**不传 fields**，返回全部字段 |
+| 平台资源 `core/user`、`core/role`、`core/log`、`driver/driverInstance` 等 | 固定 | **必须传 fields**（或创建时 `projectFields`），显式列出（字段表见各 `references/platform/*.md`） |
 
 > 详见 [references/client-api.md](references/client-api.md)「字段投影规则」。
 
@@ -236,7 +236,7 @@ cat <projectPath>/package.json | grep -E '"@kesi/client"|"react"|"react-router-d
 
 **通用前置（所有路由象限都做）：**
 
-1. **API 层** — 生成 `createResourceClient` + `queryLatest` + `queryHistory` + `fetchLatestTags`
+1. **API 层** — 生成 `createAPI` + `queryLatest` + `queryHistory` + `fetchLatestTags`
 2. **仪表盘** — systemVariable 统计卡片 + echarts 趋势图
 3. **菜单路由** — 根据报告配置路由和侧边栏
 4. **实时订阅**（可选增强）— `useTag` / `useTableData` 替换 `queryLatest`
@@ -455,22 +455,19 @@ my-project/
 > 完整文档按需查阅 [references/INDEX.md](references/INDEX.md)
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-// 创建资源客户端
-const api = createResourceClient<T>({
-  client: createHttpClient({ resource: 'core/t/<tableId>/d' }),
-  resource: 'core/t/<tableId>/d',
-})
+// 创建 Model API 实例（自带 query/get/save/delete/count/fetch）
+const api = createAPI({ resource: 'core/t/<tableId>/d', projectAll: true })
 const { items, total } = await api.query({ limit: 100 })
-const count = await api.count()
+const count = await api.count({ where: {} })
 ```
 
 ### 模块索引
 
 | 模块 | 关键 API | 详细文档 |
 |------|---------|---------|
-| HTTP | `createHttpClient`, `createResourceClient` | [references/client-api.md](references/client-api.md) |
+| HTTP | `createAPI`, `createHttp` | [references/client-api.md](references/client-api.md) |
 | 平台资源 | 用户/角色/日志/驱动/字典/分组/报表 | [references/INDEX.md](references/INDEX.md) → 「平台资源 API」节 |
 | 认证 | `useLogin`, `useUser` | [references/client-auth.md](references/client-auth.md) |
 | 表单 | `useForm`, `useFieldUIState` | [references/client-form.md](references/client-form.md) |

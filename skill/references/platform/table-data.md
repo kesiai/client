@@ -5,10 +5,9 @@
 **⚠️ resource 必须加 `/d` 后缀：** `core/t/{tableId}/d`（不是 `core/t/{tableId}`）
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/t/hvac_system/d' })
-const tableApi = createResourceClient<Record>({ client, resource: 'core/t/hvac_system/d' })
+const tableApi = createAPI({ resource: 'core/t/hvac_system/d', projectAll: true })
 ```
 
 ## 系统注入字段
@@ -50,9 +49,9 @@ const tableApi = createResourceClient<Record>({ client, resource: 'core/t/hvac_s
 
 表记录的字段是**动态的**——由该表的 schema（`properties`）定义，不同表字段完全不同，无法预先列举。因此：
 
-- **表记录查询 `不要传 fields`**：依赖 SDK 默认行为自动加 `projectAll: true`，返回所有自定义字段。
+- **表记录查询 `不要传 fields`**：创建 API 实例时传 `projectAll: true`，返回所有自定义字段。
 - 后端默认只按 `tableSchema` 投影，若不加 `projectAll`（或显式 `fields`），自定义字段会丢失。
-- `createResourceClient` 在 `filter.fields` 为空时**自动注入** `projectAll: true`（见 SDK 源码 `resource.ts`），所以**保持 filter 不带 fields 即可**，切勿传入不全的字段列表导致静默丢字段。
+- `projectAll: true` 是 `createAPI` **创建时的显式选项**，所以**保持 filter 不带 fields 即可**，切勿传入不全的字段列表导致静默丢字段。
 
 > 对比：`core/user`、`core/role`、`core/log`、`driver/driverInstance` 等平台资源字段是**固定**的，查询时应**显式传 `fields`**（见各自文档）。
 
@@ -100,6 +99,6 @@ await tableApi.save({ id: 'record-001', status: 'offline' }, true)
 // 删除
 await tableApi.delete('record-001')
 
-// 计数
-const count = await tableApi.count({ online: { $eq: true } })
+// 计数（条件包在 where 里）
+const count = await tableApi.count({ where: { online: { $eq: true } } })
 ```

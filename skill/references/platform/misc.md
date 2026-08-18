@@ -5,8 +5,9 @@
 ## 数据分组（`core/catalog`）
 
 ```typescript
-const client = createHttpClient({ resource: 'core/catalog' })
-const catalogApi = createResourceClient<Catalog>({ client, resource: 'core/catalog' })
+import { createAPI } from '@kesi/client'
+
+const catalogApi = createAPI({ resource: 'core/catalog' })
 ```
 
 | 字段 | 类型 | 说明 |
@@ -33,8 +34,7 @@ const { items } = await catalogApi.query({ limit: 50, fields: CATALOG_FIELDS }, 
 ## 报表（`report/report`）
 
 ```typescript
-const client = createHttpClient({ resource: 'report/report' })
-const reportApi = createResourceClient<Report>({ client, resource: 'report/report' })
+const reportApi = createAPI({ resource: 'report/report' })
 ```
 
 | 字段 | 类型 | 说明 |
@@ -61,8 +61,7 @@ const { items } = await reportApi.query({ limit: 50, fields: REPORT_FIELDS }, { 
 ## 数据接口（`ds/interface`）
 
 ```typescript
-const client = createHttpClient({ resource: 'ds/interface' })
-const interfaceApi = createResourceClient<Interface>({ client, resource: 'ds/interface' })
+const interfaceApi = createAPI({ resource: 'ds/interface' })
 ```
 
 | 字段 | 类型 | 说明 |

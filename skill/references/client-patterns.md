@@ -50,14 +50,13 @@ function ProtectedRoute({ children }) {
 ## TypeScript 类型安全
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
 interface User { id?: string; name: string; email: string }
 
-const client = createHttpClient({ resource: 'core/user' })
-const userApi = createResourceClient<User>({ client, resource: 'core/user' })
-const user = await userApi.get('id')
-console.log(user?.name)  // 类型为 string
+const userApi = createAPI({ resource: 'core/user', projectFields: ['id', 'name', 'email'] })
+const user: User = await userApi.get('id')
+console.log(user?.name)  // 在解构/赋值处标注类型
 ```
 
 ## 错误处理

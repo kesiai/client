@@ -3,10 +3,9 @@
 > 数据字典/系统变量的 CRUD 和实时订阅。
 
 ```typescript
-import { createHttpClient, createResourceClient } from '@kesi/client'
+import { createAPI } from '@kesi/client'
 
-const client = createHttpClient({ resource: 'core/systemVariable' })
-const dictApi = createResourceClient<SystemVariable>({ client, resource: 'core/systemVariable' })
+const dictApi = createAPI({ resource: 'core/systemVariable' })
 ```
 
 ## 字段
@@ -158,8 +157,8 @@ const lightOnlineRate = stats.get('lighting_system')?.value?.onlineRate // 95
 
 // ❌ 不推荐：逐条 getVar 或逐表 count 聚合（多次 HTTP 请求）
 // await getVar('warnCount'); await getVar('hvac_system'); ...
-// const total = await deviceApi.count()
-// const online = await deviceApi.count({}, { online: { $eq: true } })
+// const total = await deviceApi.count({ where: {} })
+// const online = await deviceApi.count({ where: { online: { $eq: true } } })
 ```
 
 ## 实时订阅
