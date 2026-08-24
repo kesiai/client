@@ -92,6 +92,7 @@ export interface AppSettings {
 export interface Config {
   /** REST API 基础路径，默认为 '/rest/' */
   rest?: string
+  baseURL?: string
 
   /** 项目 ID，用于请求头 x-request-project */
   projectId?: string

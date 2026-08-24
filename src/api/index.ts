@@ -151,9 +151,9 @@ function getTimezoneOffset(): string {
   return `${sign}${hours}:${minutes}`
 }
 
-function getHost(options: APIOptions): string {
+function getBaseURL(options: APIOptions): string {
   if (options?.proxyKey) return options.proxyKey
-  return getConfig().rest || '/rest/'
+  return getConfig().rest || getConfig().baseURL || '/rest/'
 }
 
 function resolveResource(options: APIOptions): string {
@@ -219,7 +219,7 @@ export function createHttp(options: APIOptions, context?: AppContext): AxiosInst
 
   instance.interceptors.request.use((config) => {
     if(!config.baseURL) {
-      config.baseURL = getHost(options)
+      config.baseURL = getBaseURL(options)
     }
     const headers = getHeaders(options as FetchOptions, ctx)
     const cfgHeaders = config.headers as Record<string, any>
@@ -246,7 +246,7 @@ export function createHttp(options: APIOptions, context?: AppContext): AxiosInst
 // 工厂函数创建 Model API 实例
 export function createAPI(options: APIOptions, context?: AppContext): ModelAPIInstance {
   const ctx = context || getConfig()
-  const host = getHost(options)
+  const host = getBaseURL(options)
   const model = options
   const resource = resolveResource(options)
 
