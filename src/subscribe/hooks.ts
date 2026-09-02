@@ -32,15 +32,9 @@ export function useTag(options: TagOptions) {
   const { subscribeTags } = useSubscribeContext()
   const tableDataContext = useCellDataValue()?.tableData
 
-  let dataId, tableId, tagId = options.tagId
-
-  if (options.dataId) {
-    dataId = options.dataId
-    tableId = options.tableId
-  } else {
-    dataId = tableDataContext?.id
-    tableId = tableDataContext?.table?.id || tableDataContext?._table
-  }
+  let dataId = options.dataId || tableDataContext?.id, 
+      tableId = options.tableId || tableDataContext?.table?.id || tableDataContext?._table,
+      tagId = options.tagId
 
   React.useEffect(() => {
     if (dataId && tableId && tagId) {
@@ -83,15 +77,8 @@ export function useTableData(options: DataPropOptions) {
   const { subscribeData } = useSubscribeContext()
   const tableDataContext = useCellDataValue()?.tableData
 
-  let dataId, tableId
-
-  if (options.dataId) {
-    dataId = options.dataId
-    tableId = options.tableId
-  } else {
-    dataId = tableDataContext?.id
-    tableId = tableDataContext?.table?.id || tableDataContext?._table
-  }
+  let dataId = options.dataId || tableDataContext?.id, 
+      tableId = options.tableId || tableDataContext?.table?.id || tableDataContext?._table
 
   const newOptions: DataPropOptions = {
     ...options,
