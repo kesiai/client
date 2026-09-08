@@ -31,7 +31,7 @@ export {
 } from './model'
 
 export {
-  useLogin, useLogout, useUser, useUserReg
+  useLogin, useLogout, useUser, useUserReg, useUserAttr
 } from './auth'
 
 export {  getSettings, useMessage

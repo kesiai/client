@@ -44,6 +44,7 @@ export interface TagOptions {
   tableId?: string
   dataId?: string
   tagId: string
+  field?: string
 }
 
 export interface DataPropOptions {

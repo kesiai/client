@@ -1,12 +1,24 @@
 import React from 'react'
 import isEmpty from 'lodash/isEmpty'
 import omit from 'lodash/omit'
+import get from 'lodash/get'
 import dayjs from 'dayjs'
 import sha1 from 'crypto-js/sha1'
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom'
 import { useMessage } from '../hooks'
 import { getConfig, setConfig } from '../config'
 import api from '../api'
+
+/**
+ * 当前用户属性取值。
+ * - 无参：返回整个用户对象；
+ * - 带 attr（如 `name` / `dept.name`）：按点路径取用户属性。
+ */
+export const useUserAttr = <T = any>(attr?: string) => {
+  const user = getConfig().user
+  if (!attr) return user as T
+  return get(user, attr) as T
+}
 
 export const useUser = () => {
   const storageKey = 'user'

@@ -24,15 +24,17 @@ export function useSubscribeContext() {
 // Tag Hooks
 // ============================================================================
 export function useTagValue(options: TagOptions) {
-  const { tableId, dataId, tagId } = options
-  return useAtomValue(tagsState(`${tableId}|${dataId}|${tagId}`), { store: usePageStore() })
+  const { tableId, dataId, tagId, field } = options
+  const tag = useAtomValue(tagsState(`${tableId}|${dataId}|${tagId}`), { store: usePageStore() })
+  return field ? _.get(tag, field) : tag
 }
 
 export function useTag(options: TagOptions) {
   const { subscribeTags } = useSubscribeContext()
   const tableDataContext = useCellDataValue()?.tableData
+  const { field } = options
 
-  let dataId = options.dataId || tableDataContext?.id, 
+  let dataId = options.dataId || tableDataContext?.id,
       tableId = options.tableId || tableDataContext?.table?.id || tableDataContext?._table,
       tagId = options.tagId
 
@@ -43,7 +45,7 @@ export function useTag(options: TagOptions) {
     }
   }, [dataId, tableId, tagId, subscribeTags])
 
-  return useTagValue({ tableId, dataId, tagId })
+  return useTagValue({ tableId, dataId, tagId, field })
 }
 
 export function useUpdateTags() {

@@ -7,6 +7,9 @@ export * from './datasource'
 // Page var hooks
 export * from './pagevar'
 
+// System var hooks
+export * from './systemVar'
+
 // Functions hooks
 export * from './functions'
 

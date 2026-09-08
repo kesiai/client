@@ -88,12 +88,12 @@ export interface ModelAPIInstance {
 
   // 方法
   fetch: (uri: string, options?: FetchOptions) => Promise<FetchResponse>
-  query: (filter?: any, wheres?: any, withCount?: boolean, ...params: any[]) => Promise<{ items: any[]; total: number }>
+  query: (filter?: QueryOptions, wheres?: any, withCount?: boolean, ...params: any[]) => Promise<{ items: any[]; total: number }>
   get: (id?: string, option?: FetchOptions) => Promise<any>
   getOrigin: (id?: string) => Promise<FetchResponse>
   delete: (id?: string) => Promise<any>
   save: (data?: any, partial?: boolean) => Promise<any>
-  count: (filter?: any) => Promise<number>
+  count: (filter?: QueryOptions) => Promise<number>
 
   // 方法
   convert_format: (v: any, schema: SchemaProperty) => any
@@ -530,7 +530,7 @@ export function createAPI(options: APIOptions, context?: AppContext): ModelAPIIn
       return cv
     },
 
-    query(filter: any = {}, wheres: any = {}, withCount: boolean = true, ...params: any[]): Promise<{ items: any[]; total: number }> {
+    query(filter: QueryOptions = {}, wheres: any = {}, withCount: boolean = true, ...params: any[]): Promise<{ items: any[]; total: number }> {
       const where = this.convert_where(wheres)
       const f: any = { ...params, ...model.queryParams, ...this.convert(filter) }
 

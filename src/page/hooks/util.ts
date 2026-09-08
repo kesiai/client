@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import { atom, PrimitiveAtom } from 'jotai'
+import { atom, PrimitiveAtom, createStore } from 'jotai'
 import { atomFamily } from 'jotai/utils'
 import { useAtomCallback } from 'jotai/utils'
 import { useCallback, useContext } from 'react'
@@ -37,5 +37,12 @@ export function createCallback<T extends object>(atomState: AtomState<T>, option
 }
 
 export function usePageStore() {
-  return useContext(PageStoreContext)?.store
+  try {
+    return useContext(PageStoreContext)?.store
+  } catch (error) {
+    if(!window.PAGE_STORE) {
+      window.PAGE_STORE = createStore()
+    }
+    return window.PAGE_STORE
+  }
 }

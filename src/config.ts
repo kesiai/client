@@ -144,3 +144,9 @@ export const getConfig = (): Config => {
 export const setConfig = (config: Partial<Config>): void => {
   Object.assign(configAtom, config)
 }
+declare global {
+  interface Window {
+    PAGE_STORE?: any
+    SUBSCRIBE_WS?: any
+  }
+}
