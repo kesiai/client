@@ -1,30 +1,42 @@
 # Subscribe - 数据订阅模块
 
-Subscribe 模块提供了实时数据订阅功能，通过 WebSocket 实现数据点和表数据的实时推送。
+Subscribe 模块提供基于 WebSocket 的实时数据订阅：数据点（tag）与表数据（tabledata）的推送。
+
+**不需要外层 Provider。** 订阅的真实生命周期挂在读取值的 Jotai atom 的 mount 上——
+哪个组件读了 `useTag(...)`，就为那个 tag 建立订阅；组件卸载、refCount 归零后延迟约 2s 释放。
 
 ## 目录
 
 - [概述](#概述)
 - [核心概念](#核心概念)
-- [Subscribe Provider](#subscribe-provider)
 - [Hooks API](#hooks-api)
+- [命令式订阅](#命令式订阅)
 - [数据查询](#数据查询)
 - [完整示例](#完整示例)
 - [最佳实践](#最佳实践)
+- [API 参考](#api-参考)
 
 ---
 
 ## 概述
 
-Subscribe 模块是基于 WebSocket 的实时数据订阅系统，提供了：
+```
+组件 → useTag(id) → tagsState(key) atom 首次被 mount
+                      └─ onMount → tagRegistry.retain(key, setAtom)
+                                     └─ 去重 / 防抖 / 批量 → WebSocket query
+                                     └─ 推送回来 → setAtom → 组件更新
+     组件卸载    → release() → refCount 归零 → releaseDelay 后回收 atom 与订阅
+```
 
-- **数据点订阅** - 实时获取数据点的最新值
-- **表数据订阅** - 实时获取表数据的变化
-- **自动订阅管理** - 智能的订阅列表管理（使用 useRef）
-- **性能优化** - 防抖和批量更新优化
-- **状态隔离** - 基于 Jotai 的独立 Store
+要点：
 
-所有 hooks 都使用页面级别的 Store（通过 `SubscribeContext`），确保状态隔离。
+- **无需 Provider**——`useTag` / `useTableData` 可以在任意位置调用，包括分页/弹窗/编辑器预览。
+- **订阅会收缩**——最后一个读者离开后订阅被释放，不再只增不减。
+- **写到正确的 store**——推送通过 atom `onMount` 拿到的 `setAtom` 广播，它绑定到 mount 该 atom 的 store；嵌套 `<Page>` 时多个 store 同时存活也不会串。
+- **批量合并**——100ms 窗口内的订阅变更合并成一次下发；同一行的多个 tag 合并成一次写入。
+
+WebSocket 通道：`data`（数据点）、`tabledata`（表数据）、`computerecord`（引用/计算字段）、
+`warning`（报警状态）、`time`（服务器时间）。这些通道都是模块级惰性单例，首次有需求时自动建立。
 
 ---
 
@@ -57,45 +69,12 @@ interface TagValue {
   value?: any              // 标签值
   time?: any               // 时间戳
   warningState?: any       // 报警状态
-  timeoutState?: any       // 超时状态
+  timeoutState?: {
+    isTimeout?: boolean
+    isOffline?: boolean
+    level?: number
+  }
   [key: string]: any
-}
-```
-
----
-
-## Subscribe Provider
-
-`Subscribe` 组件是订阅系统的根组件。
-
-### 基本使用
-
-```typescript
-import { Subscribe } from '@kesi/client'
-
-function App() {
-  return (
-    <Subscribe>
-      <YourComponent />
-    </Subscribe>
-  )
-}
-```
-
-### Provider 提供的功能
-
-- **WebSocket 连接管理** - 自动管理 WebSocket 连接
-- **订阅列表管理** - 使用 useRef 维护订阅列表
-- **防抖优化** - 500ms 防抖，最大等待 1000ms
-- **独立 Store** - 基于 Jotai 的状态管理
-
-### Context 类型
-
-```typescript
-interface SubscribeContextValue {
-  store: ReturnType<typeof createStore>  // Jotai store
-  subscribeTags: (tags: SubTag[], clear?: boolean) => void
-  subscribeData: (dataIds: SubData[], clear?: boolean) => void
 }
 ```
 
@@ -103,36 +82,29 @@ interface SubscribeContextValue {
 
 ## Hooks API
 
-### useDataTag
+### useTag
 
-订阅并获取数据点的值（自动订阅）。
-
-```typescript
-function useDataTag(options: TagOptions): TagValue | undefined
-```
-
-**参数：**
+订阅并读取数据点。**这是最常用的入口。**
 
 ```typescript
+function useTag(options: TagOptions): TagValue | undefined
+
 interface TagOptions {
   tableId?: string
   dataId?: string
   tagId: string
+  field?: string   // 只取值里的某个字段
 }
 ```
 
-**特性：**
-- 自动订阅数据点
-- 如果不提供 `dataId` 和 `tableId`，会从 `useCellDataValue` 获取
-- 返回实时更新的数据点值
+未提供 `tableId` / `dataId` 时会从 `useCellDataValue()` 的单元格上下文补齐，
+所以在表格单元格里可以只写 `tagId`。
 
-**示例：**
-
-```typescript
-import { useDataTag } from '@kesi/client'
+```tsx
+import { useTag } from '@kesi/client'
 
 function TemperatureDisplay() {
-  const tagValue = useDataTag({
+  const tag = useTag({
     tableId: 'device-table',
     dataId: 'device-001',
     tagId: 'temperature'
@@ -140,285 +112,219 @@ function TemperatureDisplay() {
 
   return (
     <div>
-      <p>温度: {tagValue?.value}°C</p>
-      <p>时间: {tagValue?.time}</p>
-      <p>状态: {tagValue?.timeoutState?.isOffline ? '离线' : '在线'}</p>
+      <p>温度: {tag?.value}°C</p>
+      <p>时间: {tag?.time}</p>
+      <p>状态: {tag?.timeoutState?.isOffline ? '离线' : '在线'}</p>
     </div>
   )
 }
 ```
 
-### useDataTagValue
+只取字段：
 
-获取数据点的值（不自动订阅）。
-
-```typescript
-function useDataTagValue(options: TagOptions): TagValue | undefined
+```tsx
+const value = useTag({ tagId: 'temperature', field: 'value' })
 ```
 
-**使用场景：**
-- 只读取已订阅的数据
-- 不触发自动订阅
-- 用于性能优化
+### useTagValue
 
-**示例：**
+与 `useTag` 同源，同样会订阅——生命周期挂在 atom 的 mount 上，**只要读了就会 mount**。
+保留它只是为了兼容既有调用点，新代码用 `useTag` 即可。
 
 ```typescript
-import { useDataTagValue } from '@kesi/client'
-
-function CurrentValue() {
-  const value = useDataTagValue({
-    tableId: 'device-table',
-    dataId: 'device-001',
-    tagId: 'pressure'
-  })
-
-  return <span>{value?.value}</span>
-}
+function useTagValue(options: TagOptions): TagValue | undefined
 ```
 
 ### useTableData
 
-订阅并获取表数据的字段值（自动订阅）。
+订阅并读取表数据的字段值。
 
 ```typescript
 function useTableData(options: DataPropOptions): any
-```
 
-**参数：**
-
-```typescript
 interface DataPropOptions {
-  field: string              // 字段名（支持嵌套路径）
+  field: string              // 字段名（支持 lodash 嵌套路径，如 'a.b.c'）
   dataId?: string            // 数据ID
   tableId?: string           // 表ID
-  type?: string              // 类型
-  config?: string            // 配置
-  relateShowField?: string   // 关联显示字段
-  enumObj?: Record<string, string>  // 枚举对象
+  type?: string              // 'schema'（默认）| 'settings' 等
+  config?: string            // '关联字段' | '选择器'
+  relateShowField?: string   // 关联字段的显示字段
+  enumObj?: Record<string, string>  // 枚举映射
 }
 ```
 
-**示例：**
-
-```typescript
+```tsx
 import { useTableData } from '@kesi/client'
 
 function DeviceInfo() {
-  const name = useTableData({
-    field: 'name',
-    dataId: 'device-001',
-    tableId: 'device-table'
-  })
-  const status = useTableData({
-    field: 'status',
-    dataId: 'device-001',
-    tableId: 'device-table'
-  })
+  const name = useTableData({ field: 'name', dataId: 'device-001', tableId: 'device-table' })
+  const status = useTableData({ field: 'status', dataId: 'device-001', tableId: 'device-table' })
 
-  return (
-    <div>
-      <p>设备名称: {name}</p>
-      <p>运行状态: {status}</p>
-    </div>
-  )
+  return <div><p>{name}</p><p>{status}</p></div>
 }
 ```
 
 ### useTableDataValue
 
-获取表数据的值（不自动订阅）。
-
 ```typescript
 function useTableDataValue(options: DataPropOptions): any
 ```
 
-### useSubscribeContext
+同 `useTableData`，保留用于兼容。
 
-获取 Subscribe Context。
+### useReferenceValue
+
+读取引用/计算字段的值，走 `computerecord` 通道。
 
 ```typescript
-function useSubscribeContext(): SubscribeContextValue
+function useReferenceValue(tableId: string, tableDataId: string, field: string): any
 ```
 
-**示例：**
+### useServerTime
+
+服务器时间。**不要用在 Jotai `<Provider>` 内部**——它读写的是默认 store。
 
 ```typescript
-import { useSubscribeContext } from '@kesi/client'
+function useServerTime(): Dayjs
+```
 
-function SubscribeButton() {
-  const { subscribeTags } = useSubscribeContext()
+### useTimeSubscribe
 
-  const handleSubscribe = () => {
-    subscribeTags([
-      { tableId: 'table1', dataId: 'data1', tagId: 'tag1' }
-    ])
-  }
+兼容保留：显式启动 `time` 通道，返回 `null`。通常不需要，`useServerTime` 首次调用会自动启动。
 
-  return <button onClick={handleSubscribe}>订阅</button>
-}
+```typescript
+function useTimeSubscribe(): null
+```
+
+---
+
+## 命令式订阅
+
+除了「读了就订阅」的声明式用法，还提供一组命令式 API，用于按列表批量订阅（例如虚拟表格
+在 `items` 变化时整批切换）。
+
+```typescript
+function subscribeTags(tags: SubTag[], clear?: boolean): void
+function subscribeData(dataIds: SubData[], clear?: boolean): void
+function clearSubscriptions(): void
+```
+
+- `clear` 缺省为 `false` → **追加**到该组的订阅集合。
+- `clear` 为 `true` → **替换**该组自己的订阅集合。
+
+与 atom 生命周期是两种并存的所有权模型，二者的 key 会分别计入 refCount。
+命令式订阅由调用方自己负责收尾（用 `clear=true` 传新列表，或 `clearSubscriptions()`）。
+
+```tsx
+import { subscribeData, clearSubscriptions } from '@kesi/client'
+
+// 列表变化时整批替换自己这组的订阅——不会影响其它组件用 useTableData 建立的订阅
+useEffect(() => {
+  subscribeData(subDataIds, true)
+}, [items])
+
+// 卸载时丢弃自己这组
+useEffect(() => () => clearSubscriptions(), [])
+```
+
+### useSubscribeContext
+
+兼容层。改造后不再有 React Context，也不会抛错，返回的就是上面那组模块函数：
+
+```typescript
+function useSubscribeContext(): { subscribeTags: typeof subscribeTags; subscribeData: typeof subscribeData }
+```
+
+```tsx
+const { subscribeTags } = useSubscribeContext()
 ```
 
 ---
 
 ## 数据查询
 
-Subscribe 模块提供了多个查询函数：
+一次性拉取（非实时通道），用于首屏兜底、导出等场景。
 
 ### queryLastData
-
-查询数据点的最新值。
 
 ```typescript
 import { queryLastData } from '@kesi/client'
 
 queryLastData(
-  [
-    { tableId: 'table1', dataId: 'data1', tagId: 'tag1' },
-    { tableId: 'table1', dataId: 'data1', tagId: 'tag2' }
-  ],
+  [{ tableId: 'table1', dataId: 'data1', tagId: 'tag1' }],
   (data) => {
-    console.log('最新数据:', data)
-    // data: { 'table1|data1|tag1': { value: 100, time: '...' }, ... }
+    // data: { 'table1|data1|tag1': { value: 100, time: '...' } }
   }
 )
 ```
 
 ### queryTableData
 
-查询表数据。
-
 ```typescript
 import { queryTableData } from '@kesi/client'
 
 queryTableData(
-  [
-    { tableId: 'table1', dataId: 'data1', fields: ['name', 'status'] }
-  ],
-  (data) => {
-    console.log('表数据:', data)
-  }
+  [{ tableId: 'table1', dataId: 'data1', fields: ['name', 'status'] }],
+  (data) => { /* ... */ }
 )
+```
+
+### queryMeta / queryHistoryData
+
+```typescript
+queryMeta(subTags, (meta) => { /* 数据点元信息，含 timeout 配置 */ })
+queryHistoryData(tags, timeRange, (data) => { /* 历史数据 */ })
 ```
 
 ---
 
 ## 完整示例
 
-### 示例 1：实时监控设备数据
+### 实时监控设备数据
 
-```typescript
-import React from 'react'
-import { Subscribe, useDataTag } from '@kesi/client'
+```tsx
+import { useTag } from '@kesi/client'
 
 function DeviceMonitor() {
-  const temperature = useDataTag({
-    tableId: 'device-table',
-    dataId: 'device-001',
-    tagId: 'temperature'
-  })
-
-  const pressure = useDataTag({
-    tableId: 'device-table',
-    dataId: 'device-001',
-    tagId: 'pressure'
-  })
+  const temperature = useTag({ tableId: 'device-table', dataId: 'device-001', tagId: 'temperature' })
+  const pressure = useTag({ tableId: 'device-table', dataId: 'device-001', tagId: 'pressure' })
 
   return (
     <div className="device-monitor">
       <h2>设备监控</h2>
-      <div>
-        <p>温度: {temperature?.value}°C</p>
-        <p>压力: {pressure?.value} Pa</p>
-        <p>状态: {temperature?.timeoutState?.isOffline ? '离线' : '在线'}</p>
-      </div>
+      <p>温度: {temperature?.value}°C</p>
+      <p>压力: {pressure?.value} Pa</p>
+      <p>状态: {temperature?.timeoutState?.isOffline ? '离线' : '在线'}</p>
     </div>
-  )
-}
-
-function App() {
-  return (
-    <Subscribe>
-      <DeviceMonitor />
-    </Subscribe>
   )
 }
 ```
 
-### 示例 2：使用 Context 手动订阅
+直接渲染即可，不需要任何包裹：
 
-```typescript
-import React, { useEffect } from 'react'
-import { Subscribe, useSubscribeContext, useDataTagValue } from '@kesi/client'
-
-function CustomMonitor() {
-  const { subscribeTags } = useSubscribeContext()
-
-  // 使用只读hook
-  const temperature = useDataTagValue({
-    tableId: 'device-table',
-    dataId: 'device-001',
-    tagId: 'temperature'
-  })
-
-  useEffect(() => {
-    // 手动订阅
-    subscribeTags([
-      { tableId: 'device-table', dataId: 'device-001', tagId: 'temperature' }
-    ])
-  }, [subscribeTags])
-
-  return <div>温度: {temperature?.value}°C</div>
-}
-
-function App() {
-  return (
-    <Subscribe>
-      <CustomMonitor />
-    </Subscribe>
-  )
-}
+```tsx
+<DeviceMonitor />
 ```
 
-### 示例 3：批量订阅管理
+### 批量订阅一个列表
 
-```typescript
-import React, { useState, useEffect } from 'react'
-import { Subscribe, useSubscribeContext, useDataTagValue } from '@kesi/client'
+```tsx
+import { useEffect } from 'react'
+import { subscribeData, useTableData } from '@kesi/client'
 
-function BatchSubscription() {
-  const { subscribeTags } = useSubscribeContext()
-  const [subscribed, setSubscribed] = useState(false)
-
+function AlarmTable({ rows }) {
+  // 整批订阅：rows 变化时替换自己这组
   useEffect(() => {
-    if (subscribed) {
-      // 批量订阅多个数据点
-      subscribeTags([
-        { tableId: 'table1', dataId: 'data1', tagId: 'temp' },
-        { tableId: 'table1', dataId: 'data1', tagId: 'pressure' },
-        { tableId: 'table1', dataId: 'data1', tagId: 'humidity' }
-      ], true) // true = 清除之前的订阅
-    }
-  }, [subscribed, subscribeTags])
+    subscribeData(rows.map((r) => ({ tableId: 'alarm', dataId: r.id, fields: ['level'] })), true)
+  }, [rows])
 
-  const temp = useDataTagValue({ tableId: 'table1', dataId: 'data1', tagId: 'temp' })
-
-  return (
-    <div>
-      <button onClick={() => setSubscribed(!subscribed)}>
-        {subscribed ? '取消订阅' : '订阅'}
-      </button>
-      {subscribed && <p>温度: {temp?.value}</p>}
-    </div>
-  )
+  return <ul>{rows.map((r) => <AlarmRow key={r.id} dataId={r.id} />)}</ul>
 }
 
-function App() {
-  return (
-    <Subscribe>
-      <BatchSubscription />
-    </Subscribe>
-  )
+function AlarmRow({ dataId }) {
+  // 读值即订阅；此处 dataId 已经由上面的 subscribeData 覆盖，两者共享同一 key
+  const level = useTableData({ tableId: 'alarm', dataId, field: 'level' })
+  return <li>{level}</li>
 }
 ```
 
@@ -426,65 +332,34 @@ function App() {
 
 ## 最佳实践
 
-### 1. 使用 useDataTag 自动订阅
+### 1. 优先用 useTag / useTableData
 
-大部分情况下，使用 `useDataTag` 即可，它会自动处理订阅：
+它们会自动订阅、自动释放，不需要手动 `useEffect`，也不需要关心何时退订。
 
-```typescript
-// 推荐 - 自动订阅
-const value = useDataTag({ tableId: 't1', dataId: 'd1', tagId: 'tag1' })
+```tsx
+// 推荐
+const tag = useTag({ tagId: 'temperature' })
 ```
 
-### 2. 手动管理订阅
+### 2. 只在需要整批控制时才用命令式 API
 
-如果需要更精细的控制，使用 `useSubscribeContext`：
+`subscribeTags` / `subscribeData` 适合「订阅集合由一份列表驱动」的场景。
+它们的 `clear=true` 只影响自己那一组，不会误伤其它组件。
 
-```typescript
-const { subscribeTags } = useSubscribeContext()
-const value = useDataTagValue({ tableId: 't1', dataId: 'd1', tagId: 'tag1' })
+### 3. 卸载时不要手动退订
 
-useEffect(() => {
-  subscribeTags([{ tableId: 't1', dataId: 'd1', tagId: 'tag1' }], true)
-}, [])
-```
+订阅跟随 atom 的 mount/unmount 自动收缩，手动退订反而可能打断其它读到同一个 key 的组件。
 
-### 3. 批量订阅
+### 4. 大量数据点用多个 useTag，不要自己合并成一个大对象
 
-尽量批量订阅以提高性能：
+每个 key 是独立的 atom，只有变化的那个 key 会触发重渲染。把一堆实时值拼进一个对象会让
+任意一个值变化都导致整棵子树重渲染。
 
-```typescript
-// 推荐 - 批量订阅
-subscribeTags([
-  { tableId: 't1', dataId: 'd1', tagId: 'tag1' },
-  { tableId: 't1', dataId: 'd1', tagId: 'tag2' },
-  { tableId: 't1', dataId: 'd1', tagId: 'tag3' }
-], true)
-```
+### 5. 短时间内的多次订阅变更会被自动合并
 
-### 4. 使用 clear 参数
-
-`clear` 参数控制是否清除之前的订阅：
-
-```typescript
-// 添加订阅（保留之前的订阅）
-subscribeTags(newTags, false)
-
-// 替换订阅（清除之前的订阅）
-subscribeTags(newTags, true)
-```
-
-### 5. 组件卸载时清理
-
-Subscribe 模块会自动处理清理：
-
-```typescript
-useEffect(() => {
-  subscribeTags(tags, true)
-
-  // 组件卸载时会自动取消订阅
-  // 无需手动清理
-}, [subscribeTags])
-```
+订阅变更走 100ms 防抖窗口；最后一个读者离开后该 key 仍保留约 2s 才真正退订，
+用来吸收 StrictMode 双调用、路由切换、tab 切换这类抖动——避免它们引发退订+重连。
+不要依赖「卸载后立刻断连」。
 
 ---
 
@@ -494,80 +369,85 @@ useEffect(() => {
 
 ```typescript
 import {
-  Subscribe,              // Provider 组件
-  useDataTag,             // 订阅并获取数据点值
-  useTableData,           // 订阅并获取表数据
-  useDataTagValue,        // 获取数据点值（不自动订阅）
-  useTableDataValue,      // 获取表数据值（不自动订阅）
-  useSubscribeContext,    // 获取订阅上下文
-  queryLastData,          // 查询最新数据
-  queryTableData,         // 查询表数据
-  queryHistoryData,       // 查询历史数据
-  queryMeta               // 查询数据点配置
+  // 声明式（读值即订阅）
+  useTag,
+  useTagValue,
+  useTableData,
+  useTableDataValue,
+  useReferenceValue,
+
+  // 命令式
+  subscribeTags,
+  subscribeData,
+  clearSubscriptions,
+  useSubscribeContext,
+
+  // 服务器时间
+  useServerTime,
+  useTimeSubscribe,
+
+  // 一次性查询
+  queryLastData,
+  queryMeta,
+  queryTableData,
+  queryHistoryData,
+
+  // 底层（诊断/高级用法）
+  tagRegistry,
+  dataChannelRegistry,
+  referenceChannelRegistry,
+  tagKey,
+  parseTagKey,
+  getSubscribedTagKeys
 } from '@kesi/client'
 
 // 类型导出
-import type {
-  SubTag,
-  SubData,
-  TagValue,
-  TagOptions,
-  DataPropOptions,
-  SubscribeContextValue
-} from '@kesi/client'
+import type { SubTag, SubData, TagValue, TagOptions, DataPropOptions } from '@kesi/client'
 ```
+
+`getSubscribedTagKeys()` 返回当前期望的订阅 key 快照（形如 `tableId|dataId|tagId`），用于排查
+「为什么这个点没有推数据」。
 
 ---
 
 ## 常见问题
 
-### Q: useDataTag 和 useDataTagValue 有什么区别？
+### Q: 需要 `<Subscribe>` 包裹吗？
 
-A: `useDataTag` 会自动订阅，而 `useDataTagValue` 只读取已订阅的数据：
+不需要，`Subscribe` 组件已经删除。直接调用 hooks 即可。
 
-```typescript
-// 自动订阅并获取值
-const value = useDataTag({ tableId: '...', dataId: '...', tagId: '...' })
+### Q: 为什么组件卸载后连接没有立刻关闭？
 
-// 只读取值（不会自动订阅）
-const value = useDataTagValue({ tableId: '...', dataId: '...', tagId: '...' })
-```
+释放有约 2s 的延迟窗口，用来吸收 StrictMode 双调用与路由/标签切换。窗口内**该 key 仍算作
+已订阅**（仍缓存值、仍留在订阅集合里），所以常见的「A 卸载、B 挂载」切换不会产生一次
+退订+重连，只是往同一条连接上补发差量。窗口内重新读到同一个 key 则取消释放。
+
+同时通道是模块级单例：只要还有任何一个 key 需要它，连接就保持。
 
 ### Q: 如何取消订阅？
 
-A: 使用 `clear=true` 传入新的订阅列表：
+声明式订阅无需手动取消——不再有组件读那个 key 时自动释放。
+命令式订阅用 `subscribeTags(newTags, true)` / `subscribeData(newData, true)` 替换该组自己的集合，
+或 `clearSubscriptions()` 清空两个组。
 
-```typescript
-// 取消所有订阅
-subscribeTags([], true)
+### Q: `subscribeTags([], true)` 能取消所有订阅吗？
 
-// 替换为新的订阅
-subscribeTags(newTags, true)
-```
+能取消**该组**的全部订阅（包括之前用 `clear=false` 追加进来的）。它不影响声明式订阅，
+也不影响其它调用方建立的订阅集合。
 
-### Q: 如何订阅整个表的数据？
+### Q: useTag 如何从上下文获取 dataId？
 
-A: 不指定 `dataId` 和 `tagId`：
+省略 `tableId` / `dataId` 时会从 `useCellDataValue()` 补齐：
 
-```typescript
-subscribeTags([
-  { tableId: 'device-table' }  // 订阅整个表
-])
-```
-
-### Q: useDataTag 如何从上下文获取 dataId？
-
-A: 如果不提供 `dataId` 和 `tableId`，会从 `useCellDataValue()` 获取：
-
-```typescript
-// 从上下文获取
-const value = useDataTag({ tagId: 'temperature' })
+```tsx
+// 在表格单元格内
+const tag = useTag({ tagId: 'temperature' })
 
 // 等价于
-const context = useCellDataValue()
-const value = useDataTag({
-  tableId: context?.tableData?.table?.id,
-  dataId: context?.tableData?.id,
+const ctx = useCellDataValue()
+const tag = useTag({
+  tableId: ctx?.tableData?.table?.id ?? ctx?.tableData?._table,
+  dataId: ctx?.tableData?.id,
   tagId: 'temperature'
 })
 ```

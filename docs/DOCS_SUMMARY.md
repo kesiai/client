@@ -150,22 +150,22 @@ docs/
 - **最佳实践** - 使用建议和技巧
 - **常见问题** - FAQ
 
-### 7. subscribe.md (约 20 KB)
-- **概述** - 数据订阅模块的核心概念
+### 7. subscribe.md (约 15 KB)
+- **概述** - 订阅生命周期由 atom mount 驱动的整体流程（无需 Provider）
 - **核心概念**
   - SubTag - 订阅标签类型
   - SubData - 订阅数据类型
   - TagValue - 标签值类型
-- **Subscribe Provider**
-  - Provider 组件使用说明
-  - SubscribeContextValue 接口
-  - 依赖项说明
 - **Hooks API**
-  - `useDataTag` - 订阅并获取数据点值
-  - `useDataTagValue` - 获取数据点值（不自动订阅）
-  - `useTableData` - 订阅并获取表数据
-  - `useReferenceValue` - 获取计算记录值
-  - `useSubscribeContext` - 获取订阅上下文
+  - `useTag` - 订阅并读取数据点
+  - `useTagValue` - 同源兼容别名
+  - `useTableData` - 订阅并读取表数据字段
+  - `useTableDataValue` - 同源兼容别名
+  - `useReferenceValue` - 获取引用/计算字段值
+  - `useServerTime` / `useTimeSubscribe` - 服务器时间
+- **命令式订阅**
+  - `subscribeTags` / `subscribeData` / `clearSubscriptions`
+  - `useSubscribeContext` - 兼容层（无 Context、不抛错）
 - **WebSocket 管理**
   - `useWS` - WebSocket Hook
   - `useCommWS` - 通用 WebSocket Hook

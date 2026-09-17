@@ -1,39 +1,58 @@
 import { atom } from 'jotai'
-import { atomFamily } from 'jotai/utils'
+import { atomFamily } from 'jotai-family'
 import _ from 'lodash'
 import type { DataPropOptions, TagValue } from './types'
 
+import { tagRegistry, dataChannelRegistry, referenceChannelRegistry } from './channels'
+
 // ============================================================================
 // Store Atoms
+//
+// 这三个 family 的 atom 现在自己就是订阅生命周期的入口：
+//   组件 useAtomValue(...) → atom 被 mount → onMount → registry.retain(key, setAtom)
+//   最后一个组件卸载 → onMount 返回的 release → refCount 归零 → 延迟释放
+//
+// setAtom 由 jotai 传入，已绑定到「mount 它的那个 store」。这是必须的：
+// usePageStore() 在 <Page> 外返回 undefined（jotai 视为默认 store），
+// 嵌套 <Page> 又会让多个 store 同时存活，只有 setAtom 能确定写进哪一个。
 // ============================================================================
 
-// Tags subscription atoms
-export const tagsState = atomFamily(() => atom<TagValue>({}))
-// Reference/Compute atoms
-export const referenceState = atomFamily(() => atom<Record<string, any>>({}))
-export const dataState = atomFamily(() => atom<any>({}))
+const tagAtom = (key: string) => {
+  const base = atom<TagValue>(tagRegistry.peek(key) ?? {})
+  base.onMount = (setAtom) => tagRegistry.retain(key, setAtom)
+  return base
+}
 
-export const tagsTimeoutSelector = atom(null,
-  (get, set, data: { key: string; level: number }[]) => {
-    data.forEach(({ key, level }) => {
-      const prevState = get(tagsState(key))
-      if (prevState?.timeoutState?.level == level) return
-      let timeoutState = {}
-      if (level == 0 || level == 1) {
-        timeoutState = { isTimeout: false, isOffline: false, level }
-      } else if (level == 2) {
-        timeoutState = { isTimeout: true, isOffline: false, level }
-      } else if (level == 3) {
-        timeoutState = { isTimeout: true, isOffline: true, level }
-      }
-      set(tagsState(key), prev => ({ ...prev, timeoutState }))
-    })
-  }
-)
+const dataAtom = (dataId: string) => {
+  const base = atom<any>(dataChannelRegistry.peek(dataId) ?? {})
+  base.onMount = (setAtom) => dataChannelRegistry.retain(dataId, setAtom)
+  return base
+}
+
+const referenceAtom = (key: string) => {
+  const base = atom<any>(referenceChannelRegistry.peek(key) ?? {})
+  base.onMount = (setAtom) => referenceChannelRegistry.retain(key, setAtom)
+  return base
+}
+
+// Tags subscription atoms
+export const tagsState = atomFamily(tagAtom, (a: string, b: string) => a === b)
+// Reference/Compute atoms
+export const referenceState = atomFamily(referenceAtom, (a: string, b: string) => a === b)
+export const dataState = atomFamily(dataAtom, (a: string, b: string) => a === b)
+
+// atomFamily 默认永不回收（shouldRemove 默认 null），必须在 key 被彻底释放时显式移除，
+// 否则每个访问过的 key 都会永久驻留。
+tagRegistry.onEvicted((key) => tagsState.remove(key))
+dataChannelRegistry.onEvicted((key) => dataState.remove(key))
+referenceChannelRegistry.onEvicted((key) => referenceState.remove(key))
+
+// 没有被任何组件读取时用到的占位 atom，保证 hook 调用数稳定（key 可能后到）
+export const emptyTagState = atom<TagValue>({})
 
 export const dataPropSelector = atomFamily((op: DataPropOptions) => atom(
   (get) => {
-    const data = get(dataState(op.dataId))
+    const data = op.dataId ? get(dataState(op.dataId)) : undefined
     const field = op.field
 
     let value: any

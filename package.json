@@ -54,6 +54,7 @@
   },
   "peerDependencies": {
     "jotai": "2",
+    "jotai-family": "1",
     "react": "^18.2.0 | 19",
     "react-dom": "^18.2.0 | 19",
     "react-router": "7",
@@ -65,6 +66,7 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.20",
     "jotai": "^2.18.1",
+    "jotai-family": "^1.1.0",
     "lodash": "^4.17.23",
     "react": "19",
     "react-dom": "19",
