@@ -118,13 +118,15 @@ const { items } = await sysVarApi.query({ fields: ['id', 'uid', 'value'] })
 
 依据：SKILL.md「页面设计报告」规则、[system-variable.md](platform/system-variable.md)
 
-### H. 订阅 Provider 前置
+### H. 订阅用法正确
 
-**断言**：任何页面用了 `useTag` / `useTableData` 时，`src/main.tsx` 根必须有 `<Subscribe>` 包裹（模板默认满足，若生成代码改了入口需复核）。
+**断言**：`useTag` / `useTableData` 无需任何 Provider，组件内直接调用。核对每处调用的 key 齐全：`useTag` 要有 `tagId`，`useTableData` 要有 `field`；`tableId`/`dataId` 仅在表格单元格内（`useCellDataValue()` 上下文）可省略。
 
 ```typescript
-// ✅ main.tsx
-<Subscribe><App /></Subscribe>
+// ✅ 页面组件内
+const temperature = useTag({ tableId, dataId, tagId: 'temperature' })
+// ✅ 表格单元格内（上下文自动补齐）
+const value = useTag({ tagId: 'temperature', field: 'value' })
 ```
 
 依据：[client-subscribe.md](client-subscribe.md)
@@ -192,7 +194,7 @@ const { value } = useTag({ tableId, id, tagId: 'temperature' })
 | token 持久化 | `onLogin` 已处理；remember=true→localStorage，否则 sessionStorage；key 固定 `'user'`，7 天有效 | client-auth.md |
 | 会话恢复 | `main.tsx` 必须调 `loadUser()`（否则刷新即登出） | client-auth.md |
 
-> 登录/登出的**组件结构**检查（ProtectedRoute 守卫、路由挂载、Subscribe 包裹、登出入口与 `/logout` 落地）见 SKILL.md「生成后静态验证」②③③′。
+> 登录/登出的**组件结构**检查（ProtectedRoute 守卫、路由挂载、登出入口与 `/logout` 落地）见 SKILL.md「生成后静态验证」②③③′。
 
 ---
 
@@ -206,9 +208,8 @@ grep -rn "\.query(" src/
 # 定位设备数据点请求（应为数组、点结构、聚合约束）
 grep -rn "core/data/query\|core/data/latest" src/
 
-# 定位订阅使用，回查 main.tsx 是否有 <Subscribe>
+# 定位订阅使用，核对 tableId/dataId/tagId（或 field）齐全
 grep -rn "useTag\|useTableData" src/
-grep -n "Subscribe" src/main.tsx
 
 # 仪表盘统计是否误用 count()
 grep -rn "\.count()" src/pages/dashboard/ 2>/dev/null

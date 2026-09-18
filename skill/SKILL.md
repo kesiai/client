@@ -284,7 +284,7 @@ cd <projectPath> && npx tsc -b
 
 - `src/pages/auth/LoginPage.tsx` 存在，且使用 `useLogin().onLogin`（不是手写 fetch 到 `core/auth/login`）
 - `src/App.tsx` 含 `ProtectedRoute` 守卫：`useUser().user == null` → `Navigate to="/login"`
-- `src/main.tsx` 调用了 `loadUser()`（刷新恢复会话）且根有 `<Subscribe>` 包裹
+- `src/main.tsx` 调用了 `loadUser()`（刷新恢复会话）
 - `.env` 含 `VITE_PROJECT_ID`
 
 **③ 登录链路 checklist**
@@ -293,8 +293,7 @@ cd <projectPath> && npx tsc -b
 2. 用 `useLogin().onLogin` 发起登录
 3. ProtectedRoute 守卫存在（未登录跳 `/login`）
 4. main.tsx 调用 `loadUser()`
-5. `<Subscribe>` 在根
-6. （建议项）是否处理 `showCode` 验证码 / `needChangePwd` 分支
+5. （建议项）是否处理 `showCode` 验证码 / `needChangePwd` 分支
 
 > 认证 API 细节（`core/auth/login` 端点、SHA1 密码、token 持久化）见 [references/api-validation.md](references/api-validation.md)「认证 API」。
 
@@ -321,7 +320,7 @@ cd <projectPath> && npx tsc -b
 - **E** 带 group 必须聚合函数
 - **F** resource 与 client.resource 一致
 - **G** 仪表盘禁逐表 count()
-- **H** 订阅需 `<Subscribe>` 包根
+- **H** 订阅用法（`useTag`/`useTableData` 直接调用，key 齐全；仅单元格内可省 `tableId`/`dataId`）
 - **I** 接口文档对照（每个请求回查 platform 文档验证路径/方法/必传项）
 - **J** 轮询 vs 订阅（轮询请求评估能否改 ws 订阅、是否值得）
 
@@ -427,7 +426,7 @@ my-project/
   components.json             # shadcn/ui + kesi-ui registry 配置
   vite.config.ts              # 路径别名 + API 代理
   src/
-    main.tsx                  # setConfig + HashRouter + Subscribe
+    main.tsx                  # setConfig + HashRouter
     App.tsx                   # ProtectedRoute + 路由
     lib/
       utils.ts                # cn()
@@ -469,10 +468,10 @@ const count = await api.count({ where: {} })
 |------|---------|---------|
 | HTTP | `createAPI`, `createHttp` | [references/client-api.md](references/client-api.md) |
 | 平台资源 | 用户/角色/日志/驱动/字典/分组/报表 | [references/INDEX.md](references/INDEX.md) → 「平台资源 API」节 |
-| 认证 | `useLogin`, `useUser` | [references/client-auth.md](references/client-auth.md) |
+| 认证 | `useLogin`, `useUser`, `useUserAttr` | [references/client-auth.md](references/client-auth.md) |
 | 表单 | `useForm`, `useFieldUIState` | [references/client-form.md](references/client-form.md) |
 | Model | `Model`, `TableModel`, 24+ hooks | [references/client-model.md](references/client-model.md) |
-| 订阅 | `Subscribe`, `useTag`, `useTableData` | [references/client-subscribe.md](references/client-subscribe.md) |
+| 订阅 | `useTag`, `useTableData`（无需 Provider） | [references/client-subscribe.md](references/client-subscribe.md) |
 | 事件 | `useEvents`, `useEvent` | [references/client-event.md](references/client-event.md) |
 | 配置 | `setConfig`, `getConfig` | [references/client-config.md](references/client-config.md) |
 | 最佳实践 | Provider 嵌套、CRUD 示例 | [references/client-patterns.md](references/client-patterns.md) |

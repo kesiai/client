@@ -146,15 +146,7 @@ const warningArchiveApi = createAPI({ resource: 'warning/warning/archive' })
 
 ### 前置条件
 
-在 `main.tsx` 中包裹 `<Subscribe>` Provider（脚手架已自动配置）：
-
-```typescript
-import { Subscribe } from '@kesi/client'
-
-<Subscribe>
-  <App />
-</Subscribe>
-```
+无需任何 Provider。报警 WS 通道在**第一个数据点被订阅时**自动建立连接（订阅 `warning` 频道，过滤条件 `recoveryStatus: '已恢复'`），并把推送的报警状态写回对应 tag 的 `warningState`。
 
 ### 使用 useWS 订阅报警
 
@@ -203,7 +195,7 @@ subscribe(subType, query) → unsubscribe 函数
 | `subType` | 频道类型，报警固定为 `'warning'` |
 | `query` | 过滤条件对象，如 `{ recoveryStatus: '已恢复' }` |
 
-`<Subscribe>` 内部已自动订阅 `warning` 频道，通过 `onData` 回调即可接收所有报警推送。
+不用 `useWS` 也能感知报警：`useTag(...)` 的返回值带 `warningState`（`{ className, level, recoveryTime? }`），报警通道会自动把推送 patch 到对应数据点上。
 
 ### 报警状态变化
 

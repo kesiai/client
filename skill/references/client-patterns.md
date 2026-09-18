@@ -3,12 +3,12 @@
 ## Provider 嵌套
 
 ```typescript
-<Subscribe>
-  <Model name="user">
-    <YourComponent />
-  </Model>
-</Subscribe>
+<Model name="user">
+  <YourComponent />
+</Model>
 ```
+
+订阅（`useTag` / `useTableData`）不需要任何 Provider——1.0.9 起直接调用即可。
 
 ## 完整 CRUD 示例
 
@@ -82,5 +82,5 @@ try {
 |------|------|
 | API 请求失败 | 用户是否认证、setConfig 的 rest/projectId 是否正确 |
 | Model hooks 报错 | 组件是否在 `<Model>` Provider 内部 |
-| 订阅不更新 | `<Subscribe>` 是否包裹组件、WebSocket 连接状态 |
+| 订阅不更新 | `tableId`/`dataId`/`tagId` 是否正确、WebSocket 连接状态（无需 Provider） |
 | 表单验证不生效 | register() 规则、formState.errors 对象 |

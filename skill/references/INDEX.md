@@ -9,14 +9,14 @@
 | 文件 | 模块 | 说明 | 关键 API |
 |------|------|------|---------|
 | [client-api.md](client-api.md) | HTTP 模块 | Model API 实例（HTTP + CRUD 一体） | `createAPI`, `createHttp` |
-| [client-auth.md](client-auth.md) | 认证模块 | 登录、验证码、用户信息 | `useLogin`, `useUser` |
+| [client-auth.md](client-auth.md) | 认证模块 | 登录、验证码、用户信息 | `useLogin`, `useUser`, `useUserAttr` |
 | [client-config.md](client-config.md) | 配置模块 | 全局配置、Toast 消息 | `setConfig`, `getConfig`, `useMessage` |
 | [client-event.md](client-event.md) | 事件系统 | UI 交互事件绑定（点击、双击等） | `useEvents`, `useEvent` |
 | [client-form.md](client-form.md) | 表单模块 | react-hook-form 封装 + 字段 UI 状态 | `useForm`, `useFieldUIState` |
 | [client-model.md](client-model.md) | Model 模块 | Jotai 状态管理、24+ 数据 hooks | `Model`, `TableModel`, `useModelList`, `useModelSave` |
-| [client-page-hooks.md](client-page-hooks.md) | 页面 Hooks | 页面变量、数据源、工具函数 | `usePageVar`, `useDatasourceValue` |
+| [client-page-hooks.md](client-page-hooks.md) | 页面 Hooks | 页面变量、系统变量、数据源、工具函数 | `usePageVar`, `useSystemVar`, `useDatasourceValue` |
 | [client-patterns.md](client-patterns.md) | 最佳实践 | Provider 嵌套、CRUD 示例、路由守卫 | 综合示例 |
-| [client-subscribe.md](client-subscribe.md) | 订阅模块 | 实时数据点 + 表字段订阅 | `Subscribe`, `useTag`, `useTableData` |
+| [client-subscribe.md](client-subscribe.md) | 订阅模块 | 实时数据点 + 表字段订阅（无需 Provider） | `useTag`, `useTableData` |
 | [api-validation.md](api-validation.md) | API 校验 | 代码生成后数据请求正确性断言（A–J 硬规则 + 认证 API） | 生成后静态验证用 |
 | [theme-guide.md](theme-guide.md) | **主题化规范** | **shadcn 样式约束：禁止硬编码颜色、圆角等** | **UI 实现前必读** |
 

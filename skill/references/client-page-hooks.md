@@ -9,6 +9,18 @@ const [theme, setTheme] = usePageVar('theme')      // 读写
 const language = usePageVarValue('language')         // 只读
 ```
 
+## 系统变量
+
+```typescript
+import { useSystemVar } from '@kesi/client'
+
+const vars = useSystemVar()                   // 全部系统变量（宿主/页面注入）
+const weekendStart = useSystemVar('weekendStart')        // 点路径取值
+const holiday = useSystemVar('params.holiday')           // 支持嵌套路径
+```
+
+系统变量/字典的运行时数据由宿主或页面注入；未注入时为空对象。
+
 ## 数据源管理
 
 ```typescript

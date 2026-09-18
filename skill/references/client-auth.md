@@ -52,6 +52,18 @@ function UserProfile() {
 }
 ```
 
+## 读取用户属性
+
+```typescript
+import { useUserAttr } from '@kesi/client'
+
+const user = useUserAttr()                    // 整个用户对象（getConfig().user）
+const username = useUserAttr('username')      // 点路径取属性
+const deptName = useUserAttr('dept.name')     // 支持嵌套路径
+```
+
+与 `useUser()` 的区别：`useUserAttr` 直接读全局配置里的用户信息，不返回 `setUser`/`loadUser` 等方法，适合只读场景。
+
 ## 用户登出
 
 ```typescript
