@@ -118,12 +118,16 @@ export function useReferenceValue(tableId: string, tableDataId: string, field: s
 // Server Time Hooks
 // ============================================================================
 
-/** 首次调用时惰性启动 time 通道，不再依赖 <Subscribe> 挂载 */
+/** 首次调用时惰性启动 time 通道，不再依赖 <Subscribe> 挂载。
+ * 返回格式化字符串（YYYY-MM-DD HH:mm:ss，秒级跳动）而非 Dayjs 对象——
+ * 绑定到文本位（{serverTime}）时 Dayjs 实例会让 React 渲染崩溃
+ * （Objects are not valid as a React child）；需要 Dayjs 请自行 dayjs(str) 还原 */
 export function useServerTime() {
   React.useEffect(() => {
     ensureServerTimeChannel()
   }, [])
-  return useAtomValue(serverTimeState)
+  const time = useAtomValue(serverTimeState)
+  return time.format('YYYY-MM-DD HH:mm:ss')
 }
 
 /** 兼容保留：显式启动 time 通道，返回 null */
