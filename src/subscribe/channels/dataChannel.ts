@@ -11,6 +11,7 @@
 
 import _ from 'lodash'
 
+import { queryTableData } from '../queries'
 import { KeyedRegistry } from '../registry'
 import { createTransport } from './transport'
 
@@ -70,4 +71,24 @@ export const dataChannelRegistry = new KeyedRegistry<any>({
     }
     transport.setDesired(payloads)
   }
+})
+
+// 首屏快照：atom 首次被持有时先 HTTP 拉当前行数据 patch 进 atom，ws 增量随后接力。
+// 与 tagChannel.onFirstRetain(queryLastData) 同构——此前缺失导致「中台 ws 不推
+// 首拍」时 useTableData 一直空（ws 只在数据变更时推送；view-data-table 等组件
+// 一直靠自己 HTTP 首查兜底，绑定裸 hook 无兜底）。
+// fields 取 ['']（整行）与 ws 订阅口径一致；dataId→tableId 用 noteTableId 映射。
+dataChannelRegistry.onFirstRetain((dataIds) => {
+  const subs = dataIds
+    .map((dataId) => ({ dataId, tableId: tableIdByDataId.get(dataId), fields: [''] as string[] }))
+    .filter((s): s is { dataId: string; tableId: string; fields: string[] } => typeof s.tableId === 'string')
+  if (subs.length === 0) return
+  queryTableData(subs, (rows) => {
+    if (!Array.isArray(rows)) return
+    for (const row of rows) {
+      const dataId = row?.id || row?.tableDataId
+      if (!dataId) continue
+      dataChannelRegistry.patch(dataId, row)
+    }
+  })
 })
