@@ -34,44 +34,44 @@ const applyWarning = (data: any) => {
         className: data.className,
         level,
         recoveryTime: data.recoveryTime,
-        // 报警详情透传（DataPoint 弹卡等消费端挑字段展示）
-        info: { ...data, level },
+        // 报警详情透传（DataPoint 弹卡等消费端挑字段展示）。fields 只留展示所需
+        // 键——stats/latest 返回的 fields 是完整 tag 配置（rules 等，单条几 KB），
+        // 不精简会把配置巨对象写进 atom
+        info: {
+          ...data,
+          level,
+          fields: fields.map((f: any) => ({ id: f.id, name: f.name, value: f.value, level: f.level })),
+        },
       }
     })
   })
 }
 
 /**
- * 首屏补拉：订阅数据点所在设备的未恢复报警（WS 只推打开页面后新产生的报警）。
- * 一批 key 按设备去重合并为一次请求（过滤键 tableDataId 是 SQL 列名，
- * 响应键才是 tableDataID——见 kesi 应用 warning.schema 注释）；复用 applyWarning 路由。
+ * 首屏补拉：订阅数据点所在设备的当前未恢复报警（WS 只推打开页面后新产生的报警）。
+ * 走 stats/latest 专用端点（新旧平台均有，2026-10-12 实测）：入参按表分组记录 id，
+ * 响应按 rule 聚合（ruleid = 表|记录|数据点|规则）、只含未恢复、天然最新一条——
+ * 无 limit 截断，也不需要 project 白名单（list 端点「不带 project 只回 id」的怪癖它没有）。
  */
 const prefetchWarnings = (keys: string[]) => {
-  const dataIds = new Set<string>()
+  const byTable = new Map<string, Set<string>>()
   for (const key of keys) {
-    const { dataId } = parseTagKey(key)
-    if (dataId) dataIds.add(dataId)
+    const { tableId, dataId } = parseTagKey(key)
+    if (!tableId || !dataId) continue
+    if (!byTable.has(tableId)) byTable.set(tableId, new Set())
+    byTable.get(tableId)!.add(dataId)
   }
-  if (dataIds.size === 0) return
+  if (byTable.size === 0) return
 
-  const query = encodeURIComponent(JSON.stringify({
-    // 列表端点不带 project 只回 id 等系统字段（平台行为），显式指定消费端需要的字段
-    project: {
-      table: 1, tableData: 1, fields: 1, className: 1,
-      level: 1, recoveryTime: 1, time: 1, desc: 1, type: 1,
-      status: 1, processed: 1, confirmUser: 1, name: 1,
-    },
-    filter: { tableDataId: { $in: Array.from(dataIds) }, recoveryTime: { $exists: false } },
-    sort: { time: -1 },
-    limit: 100,
-  }))
+  const tableData = encodeURIComponent(JSON.stringify(
+    Array.from(byTable, ([tableId, ids]) => ({ tableId, data: Array.from(ids) })),
+  ))
   api({ name: 'warning/warning' })
-    .get(`?query=${query}`)
+    .get(`stats/latest?tableData=${tableData}`)
     .then(({ data }: any) => {
       const list = Array.isArray(data) ? data : []
-      // sort time -1（最新在前）→ 倒序应用让最新一条最后落：同一 tag 有多条
-      // 未恢复报警时 level/recoveryTime 以最新记录为准（正序 forEach 会被最旧的覆盖）
-      for (let i = list.length - 1; i >= 0; i--) applyWarning(list[i])
+      // 服务端已按 rule 聚合（每 rule 一条当前未恢复报警），顺序无关
+      list.forEach((w: any) => applyWarning(w))
     })
     .catch(() => {
       // 首屏补拉失败静默降级（此前本无此能力；实时推送不受影响）
