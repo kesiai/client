@@ -69,7 +69,9 @@ const prefetchWarnings = (keys: string[]) => {
     .get(`?query=${query}`)
     .then(({ data }: any) => {
       const list = Array.isArray(data) ? data : []
-      list.forEach((w: any) => applyWarning(w))
+      // sort time -1（最新在前）→ 倒序应用让最新一条最后落：同一 tag 有多条
+      // 未恢复报警时 level/recoveryTime 以最新记录为准（正序 forEach 会被最旧的覆盖）
+      for (let i = list.length - 1; i >= 0; i--) applyWarning(list[i])
     })
     .catch(() => {
       // 首屏补拉失败静默降级（此前本无此能力；实时推送不受影响）
