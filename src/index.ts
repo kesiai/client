@@ -75,3 +75,9 @@ export type {
 export type {
   UseFormPropsExtended
 } from './form'
+
+export * from './dataset'
+export * from './actions'
+// usePageVar/usePageVars 与 page 系统（src/page/hooks/pagevar）同名冲突：
+// 显式再导出，事件动作的页面变量实现（actions/page-var）优先
+export { usePageVar, usePageVars, getPageVar } from './actions/page-var'

@@ -39,7 +39,8 @@ export default defineConfig({
           'react-dom': 'ReactDOM',
           'react-router': 'ReactRouter',
           'react-router-dom': 'ReactRouterDOM',
-          'axios': 'axios'
+          'axios': 'axios',
+          'sonner': 'sonner'
         }
       },
       external: [
@@ -48,7 +49,9 @@ export default defineConfig({
         'react', 'react-dom', 'react-router', 'react-router-dom',
         // axios 外置：让消费方与应用共享同一 axios 实例，
         // 以便应用层装配全局响应拦截器（如 401 登录态失效处理）
-        'axios'
+        'axios',
+        // sonner 外置：toast 单例必须与应用共享同一模块实例（双实例 = 提示永不显示）
+        'sonner'
       ]
     },
     sourcemap: true,
