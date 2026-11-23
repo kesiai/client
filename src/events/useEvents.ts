@@ -15,6 +15,28 @@ import { eventTypeToReactEvent } from './event-execution'
 /**
  * useEvents Hook
  *
+ * ==================== 输入 ====================
+ * config: EventConfig = { [eventType]: Action[] }
+ *   eventType: "click"|"doubleClick"|"mouseEnter"|"mouseLeave"|"change"
+ *            | "submit"|"focus"|"blur"|"input"
+ *   Action = {
+ *     type: ActionType            // "pageJump"|"changeVar"|"changeTableData"|"changeDict"
+ *                                 // |"changeDataPoint"|"changeSystemSetting"|"changeUser"
+ *                                 // |"callFlow"|"executeCommand"|"sendRequest"
+ *     params: 各 type 对应的 Params（见 events.types.ts，如 PageJumpParams/ChangeVarParams…）
+ *     confirm?: { title?, message?, confirmText?, cancelText? }   // 二次确认
+ *     delay?: number              // 延迟执行毫秒
+ *   }
+ *   各 Params 均可带 ResultMessage（successMess/successTime/successContent/errorMess/…）控制执行提示。
+ *
+ * ==================== 输出 ====================
+ * useEvents → EventsReturn：{ onClick?, onDoubleClick?, onChange?, …, config }
+ *   键 = eventType 原名（click → click），值为 handler(e?: SyntheticEvent) => Promise<void>
+ *   执行语义：动作数组顺序执行（前一动作结果注入 context.prevResult）；
+ *   执行中重入被忽略；任一动作失败 → 收集到 error（但不中断后续，见 executeActions 返回值）
+ * useEvent(type, actions) → { handler, loading, error }   // 单事件快捷方式
+ * useEventsWithSpread(config) → { onClick, onDoubleClick, … }  // React 事件命名，可直接 {...events} 展开
+ *
  * @param config - 事件配置对象，键为事件类型，值为动作数组
  * @returns 事件处理器对象
  */

@@ -1,5 +1,20 @@
 /**
  * 事件和动作类型定义
+ *
+ * ==================== 数据流总览 ====================
+ * EventConfig（输入）──useEvents──▶ EventsReturn（事件 handler 集）
+ *                                     │ 触发
+ *                                     ▼
+ *                    executeActions(actions, EventContext) → ActionResult[]
+ *                    每个 Action 按 type 分发到 ActionHandler
+ *                    （处理器清单见 ./action-handlers.ts）
+ *
+ * 关键结构：
+ * - EventType / ActionType：事件与动作的枚举（下方）
+ * - *Params：各动作的输入参数（PageJumpParams/ChangeVarParams/…，均 extends ResultMessage）
+ * - EventContext：执行期上下文（事件源、事件参数、前一动作结果 prevResult、setPageVar）
+ * - ActionResult：单动作输出 { success, data?, error? }
+ * - EventsReturn：hook 输出，键为事件类型的 handler + config 原始配置
  */
 
 /** 事件类型 */

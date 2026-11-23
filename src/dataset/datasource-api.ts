@@ -4,12 +4,29 @@
  * useDatasourceApi({ url, method?, headers?, body?, table?, appkey?, appsecret?, predata?, interval? })
  *   → { data, loading, error, onReload }
  *
- * - url 支持预设模板变量：{table}/{appkey}/{appsecret}（实例带 table/appkey/appsecret 时替换）
- * - headers/body 兼容旧版数组形态 [{name, value}]
- * - GET 时 body 拼接为查询串；其他方法 body 作为 JSON 请求体
- * - predata 开启时把数组返回转换为 {dimensions, source}
+ * ==================== 输入 ====================
+ * {
+ *   url: string                        // 支持模板变量 {table}/{appkey}/{appsecret}，实例传对应字段时替换
+ *   method?: string                    // 默认 "GET"（实例传 string，内部归一化大写）
+ *   headers?: [{ name, value }] | Record<string, string>  // 叠加在平台认证头之上（可覆盖）
+ *   body?:    [{ name, value }] | Record<string, unknown> // GET 拼查询串；其他方法作 JSON 请求体
+ *   table?: string                     // {table} 变量值（预设「表记录查询」）
+ *   appkey?/appsecret?: string         // {appkey}/{appsecret} 变量值（预设「获取 token」）
+ *   predata?: boolean                  // 返回数组 → 转换为 {dimensions, source} 图表形态
+ *   interval?: number                  // 轮询毫秒，缺省只拉一次
+ * }
+ *
+ * ==================== 输出 ====================
+ * data: unknown                      // 默认 = HTTP 响应 JSON 原样（结构由接口决定）
+ *   // predata=true 时固定为：
+ *   //   { dimensions: string[],      // 所有记录字段的并集（按首次出现顺序）
+ *   //     source: unknown[][] }      // 每行与 dimensions 对齐；数组值 JSON.stringify；非对象返回包成 [{ result: 值 }]
+ * loading: boolean
+ * error: unknown                     // 非 2xx 抛 Error(`HTTP ${status}`)，其余异常原样
+ * onReload: () => void
  *
  * 同配置多处调用共享同一份数据与请求（key 去重，见 ./core）。
+ * 平台认证头（Authorization + x-request-project）默认注入。
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { getHeaders } from "../api";

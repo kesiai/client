@@ -4,9 +4,27 @@
  * useDatasourceTable({ tableId, columns?, filter?, sorts?, limit?, interval? })
  *   → { data, loading, error, onReload }
  *
- * 返回记录数组，每个元素为 { field: value } 形态。
+ * ==================== 输入 ====================
+ * {
+ *   tableId: string                    // 平台表 ID（"device" / "alarm" / 自定义表）
+ *   columns?: { 字段: 1 }              // 列投影，不传返回全部字段（projectAll 默认开）
+ *   filter?: Record<string, unknown>   // 后端 query.filter，如 { age: { $gte: 18 } }
+ *   sorts?: [{ field: string, order: "ASC"|"DESC" }]
+ *   limit?: number                     // 默认 100
+ *   offset?: number
+ *   groupBy?: { 显示名: "$字段名" }    // 分组聚合（与 groupFields 成对）
+ *   groupFields?: { 列名: { $sum|"$avg"|"$max"|"$min": "$字段" } | { $sum: 1 } }
+ *   interval?: number                  // 轮询毫秒，缺省只拉一次
+ * }
+ *
+ * ==================== 输出 ====================
+ * data: Array<Record<string, any>>   // 记录数组，每条为 { 字段名: 值, _label?, id? }
+ *   // 聚合模式（groupBy）下每条为 { 分组字段: 值, 聚合列名: number }
+ * loading: boolean
+ * error: unknown                     // fetch 异常原样
+ * onReload: () => void               // 手动重拉（不受 key 缓存影响）
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createAPI as api } from "../api";
 
 export interface TableSort {

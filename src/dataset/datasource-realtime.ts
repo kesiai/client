@@ -4,8 +4,27 @@
  * useDatasourceRealtime({ tags, timeLine? })
  *   → { data, loading, error }
  *
- * tags 形态：[{ tag: { id: "tagId" }, table: { id: "tableId" }, tableData: { id: "dataId" } }]
- * 通过 @kesi/client 的 useWS 建立 WebSocket 订阅，实时推送数据变更。
+ * ==================== 输入 ====================
+ * {
+ *   tags: [{                    // 订阅列表（tag.id 与 tableData.id 缺一即被过滤掉）
+ *     tag: { id: string },       // 数据点 ID
+ *     table: { id: string },     // 设备表 ID
+ *     tableData: { id: string }, // 设备记录 ID
+ *   }]
+ *   timeLine?: { count: number, unit?: string }  // 可选历史回填范围，如 { count: 1, unit: "h" } = 最近 1 小时
+ * }
+ *
+ * ==================== 输出 ====================
+ * data: Record<tagId, { value: any, time: string, tableDataId?: string }>
+ *   // key = tag.id；WS 推送与历史回填增量合并进同一对象
+ *   // time 为 "YYYY/M/D HH:mm:ss" 本地格式串
+ *   // 未回填/未推送的 tag 不在 data 中
+ * loading: boolean          // 仅历史回填期间为 true（WS 推送不影响）
+ * error: unknown            // WS 建立失败时写入，推送/回填失败静默
+ *
+ * ==================== WS 推送消费的两种形态 ====================
+ * 形态1：{ tableId, tableDataId, time, fields: { tagId: value } }（批量对象，按 tagId 展开）
+ * 形态2：[{ tagId, value, time }]（数组增量，整条写入）
  *
  * 注意：useWS 是 React hook，必须在组件函数体顶层调用（Rules of Hooks），
  * 在 useEffect 里调用会抛 "Invalid hook call" 被静默吞掉 → 订阅永远建立不起来。

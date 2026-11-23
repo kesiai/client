@@ -4,10 +4,28 @@
  * useDatasourceInterface({ op | opKey, params?, predata?, interval? })
  *   → { data, loading, error, onReload }
  *
- * 对齐旧版 data-api「数据接口」数据源：op 为接口对象（分组下拉选中后带出），
- * predata 开启时把数组返回转换为 {dimensions, source} 图表数据形态。
+ * ==================== 输入 ====================
+ * {
+ *   op?: { key?, id?, name? }   // 接口对象（分组下拉选中带出）；op.key 优先
+ *   opKey?: string              // 接口 key 简写（与 op 二选一）
+ *   params?: Record<string, unknown>  // 接口入参（POST body，按接口请求变量表单生成）
+ *   predata?: boolean           // 返回数组 → 转换为 {dimensions, source} 图表形态
+ *   interval?: number           // 轮询毫秒，缺省只拉一次
+ * }
+ *
+ * ==================== 输出 ====================
+ * data: unknown                // 默认 = 接口响应 JSON 原样（结构由接口定义决定）
+ *   // predata=true 时固定为：
+ *   //   { dimensions: string[],   // 所有记录字段并集（按首次出现顺序）
+ *   //     source: unknown[][] }   // 每行与 dimensions 对齐；数组值 JSON.stringify；非对象返回包成 [{ result: 值 }]
+ *   // op/opKey 都缺省时不发请求，data 保持 null
+ * loading: boolean
+ * error: unknown
+ * onReload: () => void
+ *
+ * 对齐旧版 data-api「数据接口」数据源。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createAPI as api } from "../api";
 
 export interface DatasourceInterfaceOptions {

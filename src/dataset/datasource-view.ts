@@ -4,14 +4,33 @@
  * useDatasourceView({ view | viewId, dimension?, stack?, measure?, where?, interval? })
  *   → { data, loading, error, onReload }
  *
- * 对齐旧版 viewdata：选视图后可配置 维度/堆叠项/指标/过滤，
- * 这些参数按旧版 dataMerge 语义覆盖 preview 请求的 config。
+ * ==================== 输入 ====================
+ * {
+ *   viewId?: string        // 视图 ID 简写（内部查 ds/view 列表补全定义）；与 view 二选一
+ *   view?: { id?, name?, config?, datasetId?, style? }  // 完整视图定义
+ *   dimension?: string[]   // 维度字段名数组（覆盖 config.group；空数组 → noGroupBy）
+ *   stack?: string         // 堆叠项字段（覆盖 config.stack）
+ *   measure?: [{           // 指标列
+ *     field?: string,      //   源字段；acc="count" 时忽略
+ *     name?: string,       //   别名
+ *     acc?: string,        //   聚合器（"count" 记作 *，其余透传 option.aggregator）；缺省原样取数
+ *   }]
+ *   where?: [{ field: string, method?: "eq"|"ne"|"gt"|"lt"|"gte"|"lte"|"like"|"between", value?: unknown }]
+ *   interval?: number      // 轮询毫秒，缺省只拉一次
+ * }
  *
- * data 为 { dimensions, source } 的 echarts dataset 格式：
- * - dimensions: 列名数组（来自 fields[].name）
- * - source: 行数据二维数组（来自响应 data，与 dimensions 对齐）
+ * 对齐旧版 viewdata：dimension/stack/measure/where 按旧版 dataMerge 语义覆盖 preview 请求的 config。
+ *
+ * ==================== 输出 ====================
+ * data: { dimensions: string[], source: any[][] }   // echarts dataset 格式
+ *   // dimensions = 列名数组（preview 响应 fields[].name，与 source 列对齐）
+ *   // source     = 行二维数组（preview 响应 data 原样）
+ *   // 视图缺失/解析失败时为 { dimensions: [], source: [] }
+ * loading: boolean
+ * error: unknown
+ * onReload: () => void
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createAPI as api } from "../api";
 
 export interface DatasourceViewOptions {

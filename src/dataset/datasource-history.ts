@@ -1,19 +1,64 @@
 /**
- * 数据源-历史数据：查询平台历史数据（core/data/query）
+ * 数据源-历史数据：查询平台历史数据（POST core/data/query）
  *
- * useDatasourceHistory({ items, timeRange, group?, ... })
+ * useDatasourceHistory({ items, timeRange, group?, noTime?, xFormat?, statisType?, type?, startTime?, sortByTime?, interval?, getOtherCondition? })
  *   → { data, loading, error, onReload }
+ *
+ * ==================== 输入 ====================
+ * {
+ *   items: DataItemConfig[]          // 数据点配置，每项生成一个 query：
+ *   //   { id?, table?, model?: { id? }, tag?: { id }, fields?, func?, fixed?,
+ *   //     groupType?: "id"|"department"|"other", group?, query?, title?, key? }
+ *   //   fields 缺省时由 tag.id 构造：无分组=裸 tag，有分组/noTime=`${func||"mean"}("tagId")`
+ *   timeRange: TimeRangeConfig       // 时间条件（timeQuery）：
+ *   //   { type: "forward"|"backward"|"now"|"before"|"after"|"between"|"lte"|"gte",
+ *   //     count?, unit?, fromNow?, time?, historyTime?,
+ *   //     range?: { gte?, lte?, ... } }
+ *   //   type + 必要参数不满足时 makeQuery 返回 null（该项不查询）
+ *   group?: { count, unit, fill?, isClassMode?, table?, record? }   // 时间分组
+ *   noTime?: boolean                 // true → 统计模式（不按时间序列）
+ *   xFormat?: string                 // X 轴时间格式化（dayjs format），设置后 time 列变字符串
+ *   statisType?: "moment"            // 瞬时值（配 type+startTime）
+ *   type?: string / startTime?: any
+ *   sortByTime?: boolean             // true → "time desc"（默认 "time asc"）
+ *   interval?: number                // 轮询毫秒，缺省只拉一次（并发去重，见 inflightRef）
+ *   getOtherCondition?: (query) => any   // item 自带 query 时构造 otherCondition
+ * }
+ *
+ * ==================== 输出（queryData 三种模式） ====================
+ * data: DatasetResult | DatasetResult[] | null | undefined
+ *
+ * DatasetResult = {
+ *   title?: string                  // item.name
+ *   dimensions: [{ name: string, title?: string, type: "time"|"ordinal"|"number"|"string", tag?: string }]
+ *   source: any[]                   // 行二维数组，列与 dimensions 对齐
+ * }
+ *
+ * 模式1 noTime=true → 单个 DatasetResult（统计数据）：
+ *   dimensions = [name「数据项」, value「数据值」, key「数据ID」]
+ *   source     = [[title, 最新值, key], ...]
+ *
+ * 模式2 有 group 且 items 均无 groupType → 单个 DatasetResult（时间+多列合并）：
+ *   dimensions = [time「时间」, ...每 key 一列（name=item.title||key, tag=key）]
+ *   source     = [[time, key1值, key2值, ...], ...]（按最长序列对齐）
+ *
+ * 模式3 其他 → DatasetResult[]（每 key 一个）：
+ *   无 groupType：dimensions = [time, 值列]
+ *   有 groupType：dimensions = [分组列（id/department/自定义）, (有 group 时再插 time), 值列]
+ *
+ * 特殊值：无匹配时间条件 → null；无分组且序列为空 → undefined
+ * loading: boolean / error: unknown / onReload: () => void
  *
  * 移植自 kesi-ui 的 datasource-history 数据源组件（makeQuery/queryData 全逻辑）。
  * 本文件是项目源码，可按需修改（shadcn 形态）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import dayjs from "dayjs";
 import isNumber from "lodash/isNumber";
 import isEmpty from "lodash/isEmpty";
 import isNil from "lodash/isNil";
 import { createAPI as api } from "../api";
-import { dsDedupe, dsSet, dsSnapshot, dsStableKey, dsSubscribe } from "./core";
+import { dsStableKey } from "./core";
 
 // ==================== Types ====================
 
@@ -73,15 +118,6 @@ const toFixed = (value: number, precision = 2): number | null => {
   if (!isNumber(value)) return value;
   return Math.round(value * Math.pow(10, precision)) / Math.pow(10, precision);
 };
-
-const convertField = (params: { field?: string; groupType?: string; method?: string }): string => {
-  const { field, groupType, method } = params;
-  if (field == null) return "MEAN(NULL)";
-  if (field.indexOf("(") < 0) return `${groupType && method ? method : "MEAN"}(${field})`;
-  return field;
-};
-
-const hasGroup = (group?: GroupConfig): boolean => !!(group && group.count && group.unit);
 
 const mergeSeriesById = (series: any[]): any[] => {
   if (series?.length > 1) {
@@ -237,101 +273,10 @@ const findLongestArrayProperty = (obj: Record<string, any[]>): string | null => 
 const hasGroupFlagFn = (group?: GroupConfig): boolean => !!(group && group.count && group.unit);
 
 /**
- * queryData 完整移植：查询结果 → 三种 dataset 输出模式
- * 1) noTime → 统计数据（dimensions+source）
- * 2) hasGroup 且无 groupType → 时间+多列合并 dataset
- * 3) 其他 → 多 dataset 数组（每 key 一个）
- */
-const buildDatasets = (
-  items: DataItemConfig[],
-  timeRange: TimeRangeConfig,
-  group: GroupConfig | undefined,
-  series: Record<string, any[]>,
-  noTime?: boolean,
-  xFormat?: string,
-): DatasetResult | DatasetResult[] | null => {
-  const hasGroupFlag = hasGroupFlagFn(group);
-  const keysOfSeries = Object.keys(series);
-
-  if (noTime) {
-    // 统计数据
-    const source = keysOfSeries
-      .map((key) => {
-        const item = items.find((i) => i.key === key);
-        if (series[key] && series[key].length > 0) {
-          return [item?.title || item?.name, !isNil(series[key][0][1]) ? series[key][0][1] : null, key];
-        }
-        return null;
-      })
-      .filter(Boolean);
-    return {
-      dimensions: [
-        { name: "name", title: "数据项", type: "ordinal" },
-        { name: "value", title: "数据值", type: "number" },
-        { name: "key", title: "数据ID", type: "ordinal" },
-      ],
-      source: source as any[],
-    };
-  }
-
-  if (hasGroupFlag && !items.find((item) => item.groupType)) {
-    // 时间+多列合并 dataset
-    const maxLen = findLongestArrayProperty(series);
-    if (!maxLen) return null;
-    const times = series[maxLen]?.map((s: any) => s[0]);
-    const source = times?.map((t: any, i: number) => [
-      t,
-      ...keysOfSeries.map((key) => {
-        if (series[key]) {
-          const val = !isNil(series[key][i]) ? series[key][i][1] : null;
-          return val == null ? null : val;
-        }
-        return null;
-      }),
-    ]);
-    const dimensions: DatasetDimensions[] = [
-      { name: "time", title: "时间", type: xFormat ? "ordinal" : "time" },
-      ...keysOfSeries.map((key) => {
-        const item = items.find((i) => i.key === key);
-        return { name: item?.title || item?.name || key || "", type: "number", tag: item?.key };
-      }),
-    ];
-    return { dimensions, source };
-  }
-
-  // 多 dataset 数组（每 key 一个）
-  return keysOfSeries.map((key) => {
-    const item = items.find((i) => i.key === key);
-    const title = item?.name;
-    const dimensions: DatasetDimensions[] = [
-      { name: item?.title || item?.name || key || "", type: "number", tag: item?.key },
-    ];
-    const source = series[key];
-    const finalDimensions = [...dimensions];
-    if (item?.groupType) {
-      if (hasGroupFlag) {
-        finalDimensions.unshift({ name: "time", title: "时间", type: xFormat ? "ordinal" : "time" });
-      }
-      let d1: DatasetDimensions = { name: item.group || "", title: item.group || "", type: "string" };
-      if (item.groupType === "id") {
-        d1 = { name: "id", title: "设备编号", type: "string" };
-      } else if (item.groupType === "department") {
-        d1 = { name: "department", title: "部门", type: "string" };
-      }
-      finalDimensions.unshift(d1);
-    } else {
-      finalDimensions.unshift({ name: "time", title: "时间", type: xFormat ? "ordinal" : "time" });
-    }
-    return { title, dimensions: finalDimensions, source } as DatasetResult;
-  });
-};
-
-/**
  * 执行查询并整形（移植 queryData 主体）
  */
 const queryData = (
   items: DataItemConfig[],
-  timeRange: TimeRangeConfig,
   results: any[] | undefined,
   group?: GroupConfig,
   noTime?: boolean,
@@ -417,7 +362,7 @@ const queryData = (
       { name: "time", title: "时间", type: xFormat ? "ordinal" : "time" },
       ...Object.keys(series).map((key) => {
         const item = items.find((i) => i.key === key);
-        return { name: item?.title || item?.name || key || "", type: "number", tag: item?.key };
+        return { name: String(item?.title || item?.name || key || ""), type: "number", tag: item?.key };
       }),
     ];
     return { dimensions: dims, source };
@@ -426,7 +371,7 @@ const queryData = (
       const item = items.find((i) => i.key === key);
       const title = item?.name;
       const dimensions: DatasetDimensions[] = [
-        { name: item?.title || item?.name || key || "", type: "number", tag: item?.key },
+        { name: String(item?.title || item?.name || key || ""), type: "number", tag: item?.key },
       ];
       const source = series[key];
       const finalDimensions = [...dimensions];
@@ -471,6 +416,8 @@ export interface DatasourceHistoryOptions {
   startTime?: any;
   /** 按时间排序 */
   sortByTime?: boolean;
+  /** 额外查询条件（当 item 自带 query 时透传给查询构造） */
+  getOtherCondition?: (query: any) => any;
   /** 轮询间隔（毫秒）；缺省只拉一次 */
   interval?: number;
 }
@@ -479,11 +426,6 @@ export interface DatasourceHistoryOptions {
 const statusMap = new Map<string, { data: unknown; loading: boolean; error: unknown }>();
 const statusListeners = new Map<string, Set<() => void>>();
 
-function statusSubscribe(key: string, cb: () => void) {
-  if (!statusListeners.has(key)) statusListeners.set(key, new Set());
-  statusListeners.get(key)!.add(cb);
-  return () => statusListeners.get(key)!.delete(cb);
-}
 function statusSnapshot(key: string) {
   return statusMap.get(key) ?? { data: null, loading: false, error: null };
 }
@@ -530,7 +472,7 @@ export function useDatasourceHistory(options: DatasourceHistoryOptions) {
           return null;
         }
 
-        const shaped = queryData(items, options.timeRange, results, options.group, options.noTime, options.xFormat);
+        const shaped = queryData(items, results, options.group, options.noTime, options.xFormat);
         statusEmit(key, { data: shaped, loading: false, error: null });
         return shaped;
       } catch (e) {

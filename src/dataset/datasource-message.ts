@@ -1,8 +1,34 @@
 /**
  * 数据源-消息：查询平台消息（core/message，支持过滤/排序/分页/分组）
  *
- * useDatasourceMessage({ initFilter?, sorts?, limit?, group?, columns?, interval? })
+ * useDatasourceMessage({ initFilter?, fieldOrder?, isGroup?, group?, columns?, limit?, feildFormat?, interval? })
  *   → { data, loading, error, onReload }
+ *
+ * ==================== 输入 ====================
+ * {
+ *   initFilter?: Record<string, unknown>   // 后端 query.filter
+ *   fieldOrder?: [{ value: 字段名, order: "ASC"|"DESC" }]
+ *   isGroup?: boolean                      // true 时启用 group+columns 分组聚合
+ *   group?: [{ field: string, dateOperator?: "天"|"周"|"月"|"年"|"一小时内的分钟数"|"一天内的小时数"|... }]
+ *   columns?: [{                            // 聚合列（isGroup 时生效）
+ *     name?: string,                        // 结果列名，缺省「个数」
+ *     field?: string,                       // 聚合目标字段
+ *     accumulator?: "$count"|"$sum"|"$avg"|"$first"|"$last"|"$max"|"$min",
+ *     expression?: unknown,                 // accumulator/field 都空时直接作为 groupFields 值
+ *   }]
+ *   limit?: number                          // 默认 1000
+ *   feildFormat?: [{ field: string, format: string }]  // createTime 用日期格式串，数值字段 "0.00" 式小数
+ *   interval?: number                       // 轮询毫秒，缺省只拉一次
+ * }
+ *
+ * ==================== 输出 ====================
+ * data: Array<Record<string, any>>   // 消息记录数组，固定投影：
+ *   // { isDelete, data, messageType, optType, record, createTime }
+ *   // 分组聚合模式下为 { 分组字段: 值, 聚合列名: number }
+ *   // feildFormat 有配置时对应字段已就地格式化
+ * loading: boolean
+ * error: unknown                     // 出错时 data 重置为 []
+ * onReload: () => void
  *
  * 对应 kesi-ui 的 datasource-message 数据源组件的查询逻辑（shadcn hook 形态）。
  */

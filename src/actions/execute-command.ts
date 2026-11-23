@@ -37,7 +37,7 @@ export async function executeCommand({ table, deviceId, command, params = {}, sh
     }
     if (!def?.name) throw new Error("指令缺少 name");
 
-    const body = {
+    const body: Record<string, any> = {
       ...def,
       id: undefined,
       name: def.name,
