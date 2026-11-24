@@ -25,38 +25,30 @@
  *   getOtherCondition?: (query) => any   // item 自带 query 时构造 otherCondition
  * }
  *
- * ==================== 输出（queryData 三种模式） ====================
- * data: DatasetResult | DatasetResult[] | null | undefined
+ * ==================== 输出（接口原始结构，直返不再整形） ====================
+ * data: QueryResult[] | null
  *
- * DatasetResult = {
- *   title?: string                  // item.name
- *   dimensions: [{ name: string, title?: string, type: "time"|"ordinal"|"number"|"string", tag?: string }]
- *   source: any[]                   // 行二维数组，列与 dimensions 对齐
- * }
+ * core/data/query 的原始 results，与请求 queries 按下标一一对应：
+ *   QueryResult = {
+ *     count?: number
+ *     series?: [{ name?, columns?, tags?: Record<string,string>,
+ *                 values: [[time, value], ...] }]   // 原始时间序列
+ *   }
  *
- * 模式1 noTime=true → 单个 DatasetResult（统计数据）：
- *   dimensions = [name「数据项」, value「数据值」, key「数据ID」]
- *   source     = [[title, 最新值, key], ...]
+ * 常用取值链（单 item）：data?.[0]?.series?.[0]?.values?.at(-1)?.[1]  // 最新值
  *
- * 模式2 有 group 且 items 均无 groupType → 单个 DatasetResult（时间+多列合并）：
- *   dimensions = [time「时间」, ...每 key 一列（name=item.title||key, tag=key）]
- *   source     = [[time, key1值, key2值, ...], ...]（按最长序列对齐）
- *
- * 模式3 其他 → DatasetResult[]（每 key 一个）：
- *   无 groupType：dimensions = [time, 值列]
- *   有 groupType：dimensions = [分组列（id/department/自定义）, (有 group 时再插 time), 值列]
- *
- * 特殊值：无匹配时间条件 → null；无分组且序列为空 → undefined
+ * 特殊值：推导不出时间窗/fields（makeQuery 全 null）或接口无 results → null
  * loading: boolean / error: unknown / onReload: () => void
  *
- * 移植自 kesi-ui 的 datasource-history 数据源组件（makeQuery/queryData 全逻辑）。
+ * 注：xFormat 仅影响旧的 queryData 整形输出，直返原始结构后不再生效（保留参数位兼容）。
+ *
+ * 移植自 kesi-ui 的 datasource-history 数据源组件（makeQuery/timeQuery/查询执行）；
+ * 输出不再做 queryData 整形，直接返回接口原始 results。
  * 本文件是项目源码，可按需修改（shadcn 形态）。
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import dayjs from "dayjs";
-import isNumber from "lodash/isNumber";
 import isEmpty from "lodash/isEmpty";
-import isNil from "lodash/isNil";
 import { createAPI as api } from "../api";
 import { dsStableKey } from "./core";
 
@@ -109,28 +101,17 @@ export interface DataItemConfig {
 }
 
 export interface QueryResult {
-  series?: Array<{ values: Array<[string, number]>; tags?: Record<string, string> }>;
+  count?: number;
+  series?: Array<{
+    name?: string;
+    columns?: string[];
+    tags?: Record<string, string>;
+    values: Array<[string, number]>;
+  }>;
 }
 
 // ==================== Utility Functions ====================
 
-const toFixed = (value: number, precision = 2): number | null => {
-  if (!isNumber(value)) return value;
-  return Math.round(value * Math.pow(10, precision)) / Math.pow(10, precision);
-};
-
-const mergeSeriesById = (series: any[]): any[] => {
-  if (series?.length > 1) {
-    const resultValues = series[0].values.map((item: any) => [item[0], 0]);
-    series.forEach((serie) => {
-      serie.values.forEach((value: any, index: number) => {
-        resultValues[index][1] = resultValues[index][1] + value[1];
-      });
-    });
-    return [{ values: resultValues }];
-  }
-  return series;
-};
 
 /** 时间查询条件（移植 datasource-utils 的 timeQuery） */
 export const timeQuery = (timeRange: any): string[] | null => {
@@ -243,158 +224,6 @@ const makeQuery = (
 
 
 
-// ==================== queryData（series 整形 → dataset 输出，移植 queryData） ====================
-
-interface DatasetDimensions {
-  name: string;
-  title?: string;
-  type: string;
-  tag?: string;
-}
-
-export interface DatasetResult {
-  title?: string;
-  dimensions: DatasetDimensions[];
-  source: any[];
-}
-
-const findLongestArrayProperty = (obj: Record<string, any[]>): string | null => {
-  let longestProp: string | null = null;
-  let maxLength = 0;
-  for (const prop in obj) {
-    if (Array.isArray(obj[prop]) && obj[prop].length > maxLength) {
-      maxLength = obj[prop].length;
-      longestProp = prop;
-    }
-  }
-  return longestProp;
-};
-
-const hasGroupFlagFn = (group?: GroupConfig): boolean => !!(group && group.count && group.unit);
-
-/**
- * 执行查询并整形（移植 queryData 主体）
- */
-const queryData = (
-  items: DataItemConfig[],
-  results: any[] | undefined,
-  group?: GroupConfig,
-  noTime?: boolean,
-  xFormat?: string,
-): DatasetResult | DatasetResult[] | null | undefined => {
-  const hasGroupFlag = hasGroupFlagFn(group);
-
-  const series = items.reduce(
-    (prev: Record<string, any[]>, item: DataItemConfig, index: number) => {
-      const result = results?.[index];
-      const { key, fixed, groupType } = item;
-      const itemGroup = item.group;
-
-      if (result?.series && hasGroupFlag && !item.uid && !item.id && !groupType) {
-        result.series = mergeSeriesById(result.series);
-      }
-
-      if (groupType) {
-        if (group && group.count && group.unit) {
-          const newseries: any[] = [];
-          result?.series?.forEach((s: any) => {
-            const col1 = s?.tags?.[groupType || ""] || s?.tags?.[itemGroup || ""];
-            s?.values.forEach((vs: any) => {
-              const col2 = xFormat ? dayjs(new Date(vs[0])).format(xFormat) : new Date(vs[0]);
-              const col3 = toFixed(vs[1], !isNil(fixed) ? fixed : 3);
-              newseries.push([col1, col2, col3]);
-            });
-          });
-          prev[key!] = newseries;
-        } else {
-          prev[key!] = (result?.series || []).map((s: any) => [
-            s?.tags?.[groupType || ""] || s?.tags?.[itemGroup || ""],
-            toFixed(s?.values?.[0]?.[1], !isNil(fixed) ? fixed : 3),
-          ]);
-        }
-      } else {
-        prev[key!] = result?.series
-          ? result.series[0]?.values.map((vs: any) => {
-              if (xFormat) {
-                return [dayjs(new Date(vs[0])).format(xFormat), toFixed(vs[1], !isNil(fixed) ? fixed : 3)];
-              }
-              return [new Date(vs[0]), toFixed(vs[1], !isNil(fixed) ? fixed : 3)];
-            })
-          : [];
-      }
-      return prev;
-    },
-    {},
-  );
-
-  if (noTime) {
-    const source = Object.keys(series)
-      .map((key) => {
-        const item = items.find((i) => i.key === key);
-        if (series[key] && series[key].length > 0) {
-          return [item?.title || item?.name, !isNil(series[key][0][1]) ? series[key][0][1] : null, key];
-        }
-        return null;
-      })
-      .filter(Boolean);
-    return {
-      dimensions: [
-        { name: "name", title: "数据项", type: "ordinal" },
-        { name: "value", title: "数据值", type: "number" },
-        { name: "key", title: "数据ID", type: "ordinal" },
-      ],
-      source: source as any[],
-    };
-  } else if (hasGroupFlag && !items.find((item) => item.groupType)) {
-    const maxLen = findLongestArrayProperty(series);
-    if (!maxLen) return undefined;
-    const times = series[maxLen]?.map((s: any) => s[0]);
-    const source = times?.map((t: any, i: number) => [
-      t,
-      ...Object.keys(series).map((key) => {
-        if (series[key]) {
-          return !isNil(series[key][i]) ? series[key][i][1] : null;
-        }
-        return null;
-      }),
-    ]);
-    const dims: DatasetDimensions[] = [
-      { name: "time", title: "时间", type: xFormat ? "ordinal" : "time" },
-      ...Object.keys(series).map((key) => {
-        const item = items.find((i) => i.key === key);
-        return { name: String(item?.title || item?.name || key || ""), type: "number", tag: item?.key };
-      }),
-    ];
-    return { dimensions: dims, source };
-  } else {
-    return Object.keys(series).map((key) => {
-      const item = items.find((i) => i.key === key);
-      const title = item?.name;
-      const dimensions: DatasetDimensions[] = [
-        { name: String(item?.title || item?.name || key || ""), type: "number", tag: item?.key },
-      ];
-      const source = series[key];
-      const finalDimensions = [...dimensions];
-      if (item?.groupType) {
-        if (hasGroupFlag) {
-          finalDimensions.unshift({ name: "time", title: "时间", type: xFormat ? "ordinal" : "time" });
-        }
-        let d1: DatasetDimensions = { name: item.group || "", title: item.group || "", type: "string" };
-        if (item.groupType === "id") {
-          d1 = { name: "id", title: "设备编号", type: "string" };
-        } else if (item.groupType === "department") {
-          d1 = { name: "department", title: "部门", type: "string" };
-        }
-        finalDimensions.unshift(d1);
-      } else {
-        finalDimensions.unshift({ name: "time", title: "时间", type: xFormat ? "ordinal" : "time" });
-      }
-      return { title, dimensions: finalDimensions, source } as DatasetResult;
-    });
-  }
-};
-
-
 // ==================== hook ====================
 
 export interface DatasourceHistoryOptions {
@@ -450,10 +279,10 @@ export function useDatasourceHistory(options: DatasourceHistoryOptions) {
       statusEmit(key, { loading: true });
       try {
         const items = options.items ?? [];
-        const filterItems = items.filter(
-          (f: any) => f?.uid || f?.id || (f?.table && (options.group && options.group.count && options.group.unit || f.groupType)),
-        );
-        const queries = filterItems
+        // 可构建性由 makeQuery 唯一判定（推导不出 fields/时间窗 → null → filter(Boolean) 兜底）。
+        // 不设第二道资格过滤——曾因「要求 uid/id 或分组配置」与面板设计形态（table+tag+func）
+        // 漂移，items 全被滤掉 → .data 恒为 null
+        const queries = items
           .map((item: any) =>
             makeQuery(item, options.timeRange, options.noTime, options.group, options.statisType, options.type, options.startTime, options.getOtherCondition, options.sortByTime),
           )
@@ -472,9 +301,9 @@ export function useDatasourceHistory(options: DatasourceHistoryOptions) {
           return null;
         }
 
-        const shaped = queryData(items, results, options.group, options.noTime, options.xFormat);
-        statusEmit(key, { data: shaped, loading: false, error: null });
-        return shaped;
+        // 直返接口原始 results（不做 queryData 整形）——与请求 queries 下标一一对应
+        statusEmit(key, { data: results, loading: false, error: null });
+        return results;
       } catch (e) {
         statusEmit(key, { loading: false, error: e });
         throw e;
